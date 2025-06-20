@@ -15,7 +15,66 @@ class HmmBotAdmin {
     this.users = [];
     this.roles = {};
     this.modules = {};
+    
+    // Données par défaut pour les rôles et modules
+    this.initDefaultData();
     this.init();
+  }
+
+  // Initialiser les données par défaut
+  initDefaultData() {
+    // Définir les rôles par défaut
+    this.roles = {
+      superadmin: { name: 'Super Admin', level: 5 },
+      admin: { name: 'Administrateur', level: 4 },
+      moderator: { name: 'Modérateur', level: 3 },
+      support: { name: 'Support', level: 2 },
+      viewer: { name: 'Lecteur', level: 1 }
+    };
+
+    // Définir les modules par défaut
+    this.modules = {
+      dashboard: {
+        name: 'Dashboard',
+        icon: 'fas fa-tachometer-alt',
+        permissions: ['view']
+      },
+      tickets: {
+        name: 'Tickets',
+        icon: 'fas fa-ticket-alt',
+        permissions: ['view', 'edit', 'create', 'delete']
+      },
+      moderation: {
+        name: 'Modération',
+        icon: 'fas fa-shield-alt',
+        permissions: ['view', 'edit', 'moderate']
+      },
+      economy: {
+        name: 'Économie',
+        icon: 'fas fa-coins',
+        permissions: ['view', 'edit', 'manage_coins']
+      },
+      config: {
+        name: 'Configuration',
+        icon: 'fas fa-cog',
+        permissions: ['view', 'edit']
+      },
+      logs: {
+        name: 'Logs',
+        icon: 'fas fa-file-alt',
+        permissions: ['view', 'delete']
+      },
+      embeds: {
+        name: 'Embeds',
+        icon: 'fas fa-code',
+        permissions: ['view', 'create', 'edit']
+      },
+      users: {
+        name: 'Utilisateurs',
+        icon: 'fas fa-users',
+        permissions: ['view', 'create', 'edit', 'delete', 'manage_permissions']
+      }
+    };
   }
 
   async init() {
@@ -204,7 +263,6 @@ class HmmBotAdmin {
         this.hideLogin();
         this.showApp();
         this.updateUserInfo();
-        this.updateNavigation();
         this.loadSection('dashboard');
         
         this.showNotification('success', `Bienvenue, ${this.currentUser.username} !`);
@@ -2988,6 +3046,97 @@ class HmmBotAdmin {
       console.error('Erreur lors de la suppression:', error);
       this.showNotification('Erreur de connexion', 'error');
     }
+  }
+
+  // Obtenir le nom d'affichage d'un rôle
+  getRoleDisplayName(role) {
+    const roleNames = {
+      'superadmin': 'Super Admin',
+      'admin': 'Administrateur',
+      'moderator': 'Modérateur',
+      'support': 'Support',
+      'viewer': 'Lecteur'
+    };
+    return roleNames[role] || role;
+  }
+
+  // Charger les informations de l'utilisateur actuel
+  async loadCurrentUser() {
+    try {
+      const res = await fetch('/api/user/me', {
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+      if (res.status === 401) {
+        this.logout();
+        return;
+      }
+      if (!res.ok) throw new Error('Erreur de chargement');
+      this.currentUser = await res.json();
+      this.updateUserInfo();
+    } catch (error) {
+      console.error('Erreur lors du chargement de l\'utilisateur:', error);
+      this.logout();
+    }
+  }
+
+  // Mettre à jour les informations utilisateur dans l'interface
+  updateUserInfo() {
+    if (!this.currentUser) return;
+
+    // Mettre à jour l'avatar
+    const avatarElement = document.getElementById('user-avatar-letter');
+    if (avatarElement) {
+      avatarElement.textContent = this.currentUser.username.charAt(0).toUpperCase();
+    }
+
+    // Mettre à jour le nom d'utilisateur
+    const usernameElement = document.getElementById('current-username');
+    if (usernameElement) {
+      usernameElement.textContent = this.currentUser.username;
+    }
+
+    // Mettre à jour le rôle
+    const roleElement = document.getElementById('current-role');
+    if (roleElement) {
+      roleElement.textContent = this.getRoleDisplayName(this.currentUser.role);
+    }
+
+    // Mettre à jour la navigation en fonction des permissions
+    this.updateNavigationPermissions();
+  }
+
+  // Mettre à jour la navigation selon les permissions
+  updateNavigationPermissions() {
+    const navItems = document.querySelectorAll('.nav-item[data-section]');
+    navItems.forEach(item => {
+      const section = item.getAttribute('data-section');
+      
+      // Permissions spéciales pour certaines sections
+      const sectionPermissions = {
+        'dashboard': true, // Toujours accessible
+        'tickets': this.hasPermission('tickets', 'view'),
+        'moderation': this.hasPermission('moderation', 'view'),
+        'economy': this.hasPermission('economy', 'view'),
+        'channels': this.hasPermission('config', 'view'),
+        'roles': this.hasPermission('config', 'view'),
+        'logs': this.hasPermission('logs', 'view'),
+        'embeds': this.hasPermission('embeds', 'create'),
+        'users': this.hasPermission('users', 'view')
+      };
+
+      const hasAccess = sectionPermissions[section] !== undefined ? 
+        sectionPermissions[section] : true;
+
+      if (hasAccess) {
+        item.style.display = 'flex';
+      } else {
+        item.style.display = 'none';
+        // Si l'utilisateur est sur cette section, le rediriger vers le dashboard
+        if (this.currentSection === section) {
+          this.loadSection('dashboard');
+        }
+      }
+    });
   }
 
 }

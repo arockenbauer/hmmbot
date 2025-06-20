@@ -1,0 +1,151 @@
+{
+  "config": {
+    "channels": {
+      "logs": "1309843028680380417",
+      "welcome": "1196083566187130890",
+      "goodbye": "1268879176048316459",
+      "moderation": "1309843028680380417",
+      "economy": "1309843028680380417",
+      "voice_logs": "1309843028680380417",
+      "general": "1195747655725351004"
+    },
+    "roles": {
+      "moderator": "1195755405146587238",
+      "admin": "1195758890885853285",
+      "member": "1196512752408199178",
+      "muted": "1330205865290109040",
+      "vip": "1196077808754098246"
+    },
+    "moderation": {
+      "auto_delete_clear_response": "false",
+      "clear_response_delay": "5000",
+      "dm_on_punishment": "true",
+      "log_all_actions": "true",
+      "max_timeout_duration": "28d"
+    },
+    "economy": {
+      "daily_amount": "250",
+      "work_min": "50",
+      "work_max": 500,
+      "rob_success_rate": "0.3",
+      "rob_min": "10",
+      "rob_max": "100"
+    },
+    "voice": {
+      "track_voice_time": "true",
+      "coins_per_minute": "5"
+    },
+    "ticket": {
+      "enabled": true,
+      "category": "1204480731330379816",
+      "support_role": "1251836754885869568",
+      "transcript_channel": "1360908289126432868",
+      "ticket_limit": 1,
+      "message": "Merci de créer un ticket pour contacter le support.",
+      "close_message": "Votre ticket a été fermé. Merci de nous avoir contactés.",
+      "log_transcripts": true,
+      "log_all_actions": true,
+      "auto_close": false,
+      "auto_close_delay": 3600,
+      "custom_fields": [],
+      "panel": {
+        "channel": "1346801601620475905",
+        "embed_title": "Support - Créer un ticket",
+        "embed_text": "Cliquez sur le bouton ci-dessous pour ouvrir un ticket et contacter notre équipe de support.",
+        "selection_type": "dropdown",
+        "button_label": "Ouvrir un ticket",
+        "button_color": "Primary",
+        "dropdown_options": [
+          "Support général",
+          "Signalement",
+          "Demande de partenariat",
+          "Autre"
+        ],
+        "welcome_message": "Bienvenue dans votre ticket ! Un membre de notre équipe va vous répondre sous peu.",
+        "confirm_before_delete": true
+      }
+    }
+  },
+  "economy": {
+    "1161709894685179985": {
+      "balance": 1.0285250788286202e+25,
+      "bank": 36884277558028424,
+      "lastDaily": 1750319097118,
+      "lastWork": 1750319123083,
+      "lastRob": 0,
+      "level": 1,
+      "xp": 156
+    },
+    "758354833895063594": {
+      "balance": "66250585240190",
+      "bank": 0,
+      "lastDaily": 1750239895554,
+      "lastWork": 0,
+      "lastRob": 0,
+      "level": 1,
+      "xp": 0
+    },
+    "1277714816663818251": {
+      "balance": 140,
+      "bank": 0,
+      "lastDaily": 0,
+      "lastWork": 0,
+      "lastRob": 0,
+      "level": 1,
+      "xp": 0
+    },
+    "1128758640564777032": {
+      "balance": 15,
+      "bank": 0,
+      "lastDaily": 0,
+      "lastWork": 0,
+      "lastRob": 0,
+      "level": 1,
+      "xp": 0
+    },
+    "1360945003161063474": {
+      "balance": 35,
+      "bank": 0,
+      "lastDaily": 0,
+      "lastWork": 0,
+      "lastRob": 0,
+      "level": 1,
+      "xp": 0
+    },
+    "1165941050502824007": {
+      "balance": "0250",
+      "bank": 0,
+      "lastDaily": 1750319700804,
+      "lastWork": 0,
+      "lastRob": 0,
+      "level": 1,
+      "xp": 0
+    }
+  },
+  "voice": {
+    "1161709894685179985": {
+      "totalTime": 79862
+    },
+    "758354833895063594": {
+      "totalTime": 15976232
+    },
+    "1343255585730068580": {
+      "totalTime": 38213
+    },
+    "1377372377406636202": {
+      "totalTime": 14806
+    },
+    "1277714816663818251": {
+      "totalTime": 1754265
+    },
+    "1128758640564777032": {
+      "totalTime": 230527
+    },
+    "1360945003161063474": {
+      "totalTime": 467508
+    },
+    "1345370846373482546": {
+      "totalTime": 7552
+    }
+  }
+}

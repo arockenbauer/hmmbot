@@ -1,0 +1,163 @@
+0 verbose cli /usr/local/bin/node /usr/local/bin/npm
+1 info using npm@10.9.0
+2 info using node@v22.9.0
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 warn config production Use `--omit=dev` instead.
+5 silly config load:file:/home/container/.npmrc
+6 silly config load:file:/usr/local/etc/npmrc
+7 verbose title npm install
+8 verbose argv "install" "--save" "--production"
+9 verbose logfile logs-max:10 dir:/home/container/.npm/_logs/2025-06-19T13_42_28_782Z-
+10 verbose logfile /home/container/.npm/_logs/2025-06-19T13_42_28_782Z-debug-0.log
+11 silly logfile start cleaning logs, removing 1 files
+12 silly logfile done cleaning log files
+13 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+14 silly idealTree buildDeps
+15 silly reify moves {}
+16 silly audit bulk request {
+16 silly audit   '@discordjs/builders': [ '1.11.2' ],
+16 silly audit   '@discordjs/collection': [ '1.5.3', '2.1.1' ],
+16 silly audit   '@discordjs/formatters': [ '0.6.1' ],
+16 silly audit   '@discordjs/rest': [ '2.5.0' ],
+16 silly audit   '@discordjs/util': [ '1.1.1' ],
+16 silly audit   '@discordjs/ws': [ '1.2.2' ],
+16 silly audit   '@sapphire/async-queue': [ '1.5.5' ],
+16 silly audit   '@sapphire/shapeshift': [ '4.0.0' ],
+16 silly audit   '@sapphire/snowflake': [ '3.5.3' ],
+16 silly audit   '@types/node': [ '24.0.1' ],
+16 silly audit   '@types/ws': [ '8.18.1' ],
+16 silly audit   '@vladfrangu/async_event_emitter': [ '2.4.6' ],
+16 silly audit   accepts: [ '1.3.8' ],
+16 silly audit   'array-flatten': [ '1.1.1' ],
+16 silly audit   'body-parser': [ '1.20.3' ],
+16 silly audit   'buffer-equal-constant-time': [ '1.0.1' ],
+16 silly audit   bytes: [ '3.1.2' ],
+16 silly audit   'call-bind-apply-helpers': [ '1.0.2' ],
+16 silly audit   'call-bound': [ '1.0.4' ],
+16 silly audit   chalk: [ '5.4.1' ],
+16 silly audit   'content-disposition': [ '0.5.4' ],
+16 silly audit   'content-type': [ '1.0.5' ],
+16 silly audit   cookie: [ '0.7.1' ],
+16 silly audit   'cookie-signature': [ '1.0.6' ],
+16 silly audit   cors: [ '2.8.5' ],
+16 silly audit   'data-uri-to-buffer': [ '4.0.1' ],
+16 silly audit   debug: [ '2.6.9' ],
+16 silly audit   depd: [ '2.0.0' ],
+16 silly audit   destroy: [ '1.2.0' ],
+16 silly audit   'discord-api-types': [ '0.38.11' ],
+16 silly audit   'discord.js': [ '14.19.3' ],
+16 silly audit   dotenv: [ '16.5.0' ],
+16 silly audit   'dunder-proto': [ '1.0.1' ],
+16 silly audit   'ecdsa-sig-formatter': [ '1.0.11' ],
+16 silly audit   'ee-first': [ '1.1.1' ],
+16 silly audit   encodeurl: [ '2.0.0', '1.0.2' ],
+16 silly audit   'es-define-property': [ '1.0.1' ],
+16 silly audit   'es-errors': [ '1.3.0' ],
+16 silly audit   'es-object-atoms': [ '1.1.1' ],
+16 silly audit   'escape-html': [ '1.0.3' ],
+16 silly audit   etag: [ '1.8.1' ],
+16 silly audit   express: [ '4.21.2' ],
+16 silly audit   'fast-deep-equal': [ '3.1.3' ],
+16 silly audit   'fetch-blob': [ '3.2.0' ],
+16 silly audit   finalhandler: [ '1.3.1' ],
+16 silly audit   'formdata-polyfill': [ '4.0.10' ],
+16 silly audit   forwarded: [ '0.2.0' ],
+16 silly audit   fresh: [ '0.5.2' ],
+16 silly audit   'function-bind': [ '1.1.2' ],
+16 silly audit   'get-intrinsic': [ '1.3.0' ],
+16 silly audit   'get-proto': [ '1.0.1' ],
+16 silly audit   gopd: [ '1.2.0' ],
+16 silly audit   'has-symbols': [ '1.1.0' ],
+16 silly audit   hasown: [ '2.0.2' ],
+16 silly audit   'http-errors': [ '2.0.0' ],
+16 silly audit   'iconv-lite': [ '0.4.24' ],
+16 silly audit   inherits: [ '2.0.4' ],
+16 silly audit   'ipaddr.js': [ '1.9.1' ],
+16 silly audit   jsonwebtoken: [ '9.0.2' ],
+16 silly audit   ms: [ '2.1.3', '2.0.0' ],
+16 silly audit   jwa: [ '1.4.2' ],
+16 silly audit   jws: [ '3.2.2' ],
+16 silly audit   lodash: [ '4.17.21' ],
+16 silly audit   'lodash.includes': [ '4.3.0' ],
+16 silly audit   'lodash.isboolean': [ '3.0.3' ],
+16 silly audit   'lodash.isinteger': [ '4.0.4' ],
+16 silly audit   'lodash.isnumber': [ '3.0.3' ],
+16 silly audit   'lodash.isplainobject': [ '4.0.6' ],
+16 silly audit   'lodash.isstring': [ '4.0.1' ],
+16 silly audit   'lodash.once': [ '4.1.1' ],
+16 silly audit   'lodash.snakecase': [ '4.1.1' ],
+16 silly audit   'magic-bytes.js': [ '1.12.1' ],
+16 silly audit   'math-intrinsics': [ '1.1.0' ],
+16 silly audit   'media-typer': [ '0.3.0' ],
+16 silly audit   'merge-descriptors': [ '1.0.3' ],
+16 silly audit   methods: [ '1.1.2' ],
+16 silly audit   mime: [ '1.6.0' ],
+16 silly audit   'mime-db': [ '1.52.0' ],
+16 silly audit   'mime-types': [ '2.1.35' ],
+16 silly audit   negotiator: [ '0.6.3' ],
+16 silly audit   'node-domexception': [ '1.0.0' ],
+16 silly audit   'node-fetch': [ '3.3.2' ],
+16 silly audit   'object-assign': [ '4.1.1' ],
+16 silly audit   'object-inspect': [ '1.13.4' ],
+16 silly audit   'on-finished': [ '2.4.1' ],
+16 silly audit   parseurl: [ '1.3.3' ],
+16 silly audit   'path-to-regexp': [ '0.1.12' ],
+16 silly audit   'proxy-addr': [ '2.0.7' ],
+16 silly audit   qs: [ '6.13.0' ],
+16 silly audit   'range-parser': [ '1.2.1' ],
+16 silly audit   'raw-body': [ '2.5.2' ],
+16 silly audit   'safe-buffer': [ '5.2.1' ],
+16 silly audit   'safer-buffer': [ '2.1.2' ],
+16 silly audit   semver: [ '7.7.2' ],
+16 silly audit   send: [ '0.19.0' ],
+16 silly audit   'serve-static': [ '1.16.2' ],
+16 silly audit   setprototypeof: [ '1.2.0' ],
+16 silly audit   'side-channel': [ '1.1.0' ],
+16 silly audit   'side-channel-list': [ '1.0.0' ],
+16 silly audit   'side-channel-map': [ '1.0.1' ],
+16 silly audit   'side-channel-weakmap': [ '1.0.2' ],
+16 silly audit   statuses: [ '2.0.1' ],
+16 silly audit   toidentifier: [ '1.0.1' ],
+16 silly audit   'ts-mixer': [ '6.0.4' ],
+16 silly audit   tslib: [ '2.8.1' ],
+16 silly audit   'type-is': [ '1.6.18' ],
+16 silly audit   undici: [ '6.21.1' ],
+16 silly audit   'undici-types': [ '7.8.0' ],
+16 silly audit   unpipe: [ '1.0.0' ],
+16 silly audit   'utils-merge': [ '1.0.1' ],
+16 silly audit   vary: [ '1.1.2' ],
+16 silly audit   'web-streams-polyfill': [ '3.3.3' ],
+16 silly audit   ws: [ '8.18.2' ]
+16 silly audit }
+17 http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 431ms
+18 silly audit report {
+18 silly audit report   undici: [
+18 silly audit report     {
+18 silly audit report       id: 1104500,
+18 silly audit report       url: 'https://github.com/advisories/GHSA-cxrh-j4jr-qwg3',
+18 silly audit report       title: 'undici Denial of Service attack via bad certificate data',
+18 silly audit report       severity: 'low',
+18 silly audit report       vulnerable_versions: '>=6.0.0 <6.21.2',
+18 silly audit report       cwe: [Array],
+18 silly audit report       cvss: [Object]
+18 silly audit report     }
+18 silly audit report   ]
+18 silly audit report }
+19 silly packumentCache corgi:https://registry.npmjs.org/undici cache-miss
+20 http fetch GET 200 https://registry.npmjs.org/undici 61ms (cache revalidated)
+21 silly packumentCache corgi:https://registry.npmjs.org/undici set size:387869 disposed:false
+22 silly packumentCache corgi:https://registry.npmjs.org/@discordjs%2frest cache-miss
+23 silly packumentCache corgi:https://registry.npmjs.org/discord.js cache-miss
+24 http fetch GET 200 https://registry.npmjs.org/discord.js 58ms (cache revalidated)
+25 silly packumentCache corgi:https://registry.npmjs.org/discord.js set size:3684099 disposed:false
+26 http fetch GET 200 https://registry.npmjs.org/@discordjs%2frest 130ms (cache revalidated)
+27 silly packumentCache corgi:https://registry.npmjs.org/@discordjs%2frest set size:2599302 disposed:false
+28 silly packumentCache corgi:https://registry.npmjs.org/@discordjs%2fws cache-miss
+29 http fetch GET 200 https://registry.npmjs.org/@discordjs%2fws 123ms (cache revalidated)
+30 silly packumentCache corgi:https://registry.npmjs.org/@discordjs%2fws set size:2413776 disposed:false
+31 verbose cwd /home/container
+32 verbose os Linux 6.1.0-37-amd64
+33 verbose node v22.9.0
+34 verbose npm  v10.9.0
+35 verbose exit 0
+36 info ok

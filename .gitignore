@@ -1,0 +1,8 @@
+# Ne pas envoyer les dépendances
+node_modules/
+
+# Dossier data à la racine
+/data/
+
+# Dossier data dans src/
+src/data/

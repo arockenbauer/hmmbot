@@ -312,7 +312,7 @@ export class UserManager {
     users[userId] = newUser;
     
     if (this.saveUsers(users)) {
-      Logger.info(`Utilisateur créé: ${userData.username} (${userData.role})`);
+      console.log(`[UserManager] Utilisateur créé: ${userData.username} (${userData.role})`);
       return { ...newUser, password: undefined }; // Ne pas retourner le mot de passe
     } else {
       throw new Error('Erreur lors de la sauvegarde de l\'utilisateur');
@@ -375,7 +375,7 @@ export class UserManager {
       users[user.id] = user;
       this.saveUsers(users);
 
-      Logger.info(`Connexion réussie: ${username}`);
+      console.log(`[UserManager] Connexion réussie: ${username}`);
       return {
         id: user.id,
         username: user.username,
@@ -472,7 +472,7 @@ export class UserManager {
 
     if (cleaned > 0) {
       this.saveSessions(sessions);
-      Logger.info(`${cleaned} sessions expirées nettoyées`);
+      console.log(`[UserManager] ${cleaned} sessions expirées nettoyées`);
     }
   }
 
@@ -572,7 +572,7 @@ export class UserManager {
     users[userId] = updatedUser;
     
     if (this.saveUsers(users)) {
-      Logger.info(`Utilisateur mis à jour: ${updatedUser.username}`);
+      console.log(`[UserManager] Utilisateur mis à jour: ${updatedUser.username}`);
       return {
         ...updatedUser,
         password: undefined,
@@ -604,7 +604,7 @@ export class UserManager {
       sessionsToDelete.forEach(sessionId => delete sessions[sessionId]);
       this.saveSessions(sessions);
 
-      Logger.info(`Utilisateur supprimé: ${user.username}`);
+      console.log(`[UserManager] Utilisateur supprimé: ${user.username}`);
       return true;
     } else {
       throw new Error('Erreur lors de la suppression');
@@ -642,5 +642,29 @@ export class UserManager {
       }));
 
     return stats;
+  }
+
+  // Obtenir les rôles disponibles
+  static getRoles() {
+    return this.ROLES;
+  }
+
+  // Obtenir les modules et permissions disponibles
+  static getModules() {
+    return this.MODULES;
+  }
+
+  // Détruire une session
+  static destroySession(sessionId) {
+    const sessions = this.loadSessions();
+    
+    if (sessions[sessionId]) {
+      delete sessions[sessionId];
+      this.saveSessions(sessions);
+      console.log(`[UserManager] Session détruite: ${sessionId}`);
+      return true;
+    }
+    
+    return false;
   }
 }

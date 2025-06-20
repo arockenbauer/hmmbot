@@ -60,7 +60,7 @@ const authenticateToken = (req, res, next) => {
     if (!session) {
       return res.status(401).json({ error: 'Session invalide ou expirée' });
     }
-    req.user = session;
+    req.user = { ...session, sessionId: decoded.sessionId };
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Token invalide' });
@@ -720,7 +720,10 @@ app.get('/api/user/me', authenticateToken, (req, res) => {
 // Lister tous les utilisateurs
 app.get('/api/users', authenticateToken, checkPermission('users', 'view'), (req, res) => {
   try {
-    const users = UserManager.getAllUsers().map(user => ({
+    const users = UserManager.getAllUsers();
+    console.log(`[API] Récupération de ${users.length} utilisateurs`);
+    
+    const cleanedUsers = users.map(user => ({
       id: user.id,
       username: user.username,
       email: user.email,
@@ -730,10 +733,12 @@ app.get('/api/users', authenticateToken, checkPermission('users', 'view'), (req,
       createdAt: user.createdAt,
       permissions: user.permissions
     }));
-    res.json(users);
+    
+    res.json(cleanedUsers);
   } catch (error) {
     console.error('Erreur lors de la récupération des utilisateurs:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ error: 'Erreur serveur', details: error.message });
   }
 });
 
@@ -852,10 +857,12 @@ app.get('/api/users/stats', authenticateToken, checkPermission('users', 'view'),
 app.get('/api/users/roles', authenticateToken, (req, res) => {
   try {
     const roles = UserManager.getRoles();
+    console.log(`[API] Récupération des rôles: ${Object.keys(roles).length} rôles disponibles`);
     res.json(roles);
   } catch (error) {
     console.error('Erreur lors de la récupération des rôles:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ error: 'Erreur serveur', details: error.message });
   }
 });
 
@@ -863,10 +870,12 @@ app.get('/api/users/roles', authenticateToken, (req, res) => {
 app.get('/api/users/modules', authenticateToken, (req, res) => {
   try {
     const modules = UserManager.getModules();
+    console.log(`[API] Récupération des modules: ${Object.keys(modules).length} modules disponibles`);
     res.json(modules);
   } catch (error) {
     console.error('Erreur lors de la récupération des modules:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ error: 'Erreur serveur', details: error.message });
   }
 });
 

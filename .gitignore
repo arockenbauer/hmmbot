@@ -6,3 +6,5 @@ node_modules/
 
 # Dossier data dans src/
 src/data/
+
+.env

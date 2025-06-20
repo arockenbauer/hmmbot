@@ -9,8 +9,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export class UserManager {
-  static USERS_FILE = path.join(__dirname, '../data/users.json');
-  static SESSIONS_FILE = path.join(__dirname, '../data/sessions.json');
+  static USERS_FILE = path.join(__dirname, '../../data/users.json');
+  static SESSIONS_FILE = path.join(__dirname, '../../data/sessions.json');
   static SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || 'SuperAdmin2024!';
   
   // Modules disponibles avec leurs permissions
@@ -115,6 +115,78 @@ export class UserManager {
     }
   };
 
+  // Initialiser le système d'utilisateurs
+  static async initialize() {
+    console.log('[USER] Initialisation du système d\'utilisateurs...');
+    
+    try {
+      // Étape 1: Créer le dossier data
+      console.log('[USER] Création du dossier data...');
+      this.ensureDataDir();
+      
+      // Étape 2: Charger les utilisateurs existants
+      console.log('[USER] Chargement des utilisateurs...');
+      const users = this.loadUsers();
+      
+      // Étape 3: Créer le SuperAdmin s'il n'existe pas
+      if (!users.superadmin) {
+        console.log('[USER] Création du compte SuperAdmin...');
+        
+        // Vérifier que bcrypt est disponible
+        if (!bcrypt || typeof bcrypt.hash !== 'function') {
+          throw new Error('bcrypt n\'est pas correctement chargé');
+        }
+        
+        const hashedPassword = await bcrypt.hash(this.SUPERADMIN_PASSWORD, 12);
+        
+        users.superadmin = {
+          id: 'superadmin',
+          username: 'superadmin',
+          email: 'superadmin@hmmbot.local',
+          password: hashedPassword,
+          role: 'superadmin',
+          isActive: true,
+          isSuperAdmin: true,
+          createdAt: new Date().toISOString(),
+          lastLogin: null,
+          permissions: null // SuperAdmin a toutes les permissions
+        };
+        
+        const saved = this.saveUsers(users);
+        if (!saved) {
+          throw new Error('Impossible de sauvegarder le SuperAdmin');
+        }
+        
+        console.log('[USER] ✅ SuperAdmin créé avec succès');
+      } else {
+        console.log('[USER] ✅ SuperAdmin déjà présent');
+      }
+      
+      // Étape 4: Nettoyer les anciennes sessions (optionnel, ne doit pas faire échouer l'init)
+      try {
+        this.cleanupExpiredSessions();
+        console.log('[USER] ✅ Sessions nettoyées');
+      } catch (error) {
+        console.warn('[USER] ⚠️ Erreur lors du nettoyage des sessions:', error.message);
+      }
+      
+      // Étape 5: Obtenir les stats (optionnel)
+      try {
+        const stats = this.getStats();
+        console.log(`[USER] ✅ Système initialisé - ${stats.totalUsers} utilisateurs, ${stats.activeSessions} sessions actives`);
+      } catch (error) {
+        console.warn('[USER] ⚠️ Impossible d\'obtenir les stats:', error.message);
+        console.log('[USER] ✅ Système initialisé (sans stats)');
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('[USER] ❌ Erreur lors de l\'initialisation:', error);
+      console.error('[USER] Stack trace:', error.stack);
+      throw error;
+    }
+  }
+
   static ensureDataDir() {
     const dataDir = path.dirname(this.USERS_FILE);
     if (!fs.existsSync(dataDir)) {
@@ -186,6 +258,25 @@ export class UserManager {
     return crypto.randomUUID();
   }
 
+  // Nettoyer les sessions expirées
+  static cleanupExpiredSessions() {
+    const sessions = this.loadSessions();
+    const now = Date.now();
+    let cleanedCount = 0;
+    
+    for (const [sessionId, session] of Object.entries(sessions)) {
+      if (now > session.expiresAt) {
+        delete sessions[sessionId];
+        cleanedCount++;
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      this.saveSessions(sessions);
+      console.log(`[USER] Nettoyé ${cleanedCount} sessions expirées`);
+    }
+  }
+
   // Authentification SuperAdmin
   static async authenticateSuperAdmin(password) {
     return password === this.SUPERADMIN_PASSWORD;
@@ -233,13 +324,41 @@ export class UserManager {
     const users = this.loadUsers();
     
     // Vérifier SuperAdmin
-    if (username === 'superadmin' && await this.authenticateSuperAdmin(password)) {
+    if (username === 'superadmin') {
+      // Charger le SuperAdmin depuis la base ou créer temporairement
+      let superAdmin = users.superadmin;
+      if (!superAdmin) {
+        // Cas où le SuperAdmin n'existe pas encore
+        if (password === this.SUPERADMIN_PASSWORD) {
+          superAdmin = {
+            id: 'superadmin',
+            username: 'superadmin',
+            email: 'superadmin@hmmbot.local',
+            role: 'superadmin',
+            isActive: true,
+            isSuperAdmin: true
+          };
+        } else {
+          throw new Error('Identifiants incorrects');
+        }
+      } else {
+        // Vérifier le mot de passe hashé
+        const isValidPassword = await this.verifyPassword(password, superAdmin.password);
+        if (!isValidPassword) {
+          throw new Error('Identifiants incorrects');
+        }
+      }
+      
       return {
-        id: 'superadmin',
-        username: 'superadmin',
-        role: 'superadmin',
-        permissions: this.ROLES.superadmin.permissions,
-        isSuperAdmin: true
+        id: superAdmin.id,
+        username: superAdmin.username,
+        email: superAdmin.email,
+        role: superAdmin.role,
+        permissions: this.getUserPermissions(superAdmin),
+        isSuperAdmin: true,
+        isActive: true,
+        lastLogin: superAdmin.lastLogin,
+        createdAt: superAdmin.createdAt
       };
     }
 
@@ -299,7 +418,7 @@ export class UserManager {
     };
 
     this.saveSessions(sessions);
-    this.cleanExpiredSessions();
+    this.cleanupExpiredSessions();
 
     return sessionId;
   }
@@ -359,6 +478,18 @@ export class UserManager {
 
   // Obtenir les permissions d'un utilisateur
   static getUserPermissions(user) {
+    // SuperAdmin a toutes les permissions
+    if (user.isSuperAdmin || user.role === 'superadmin') {
+      const allPermissions = {};
+      
+      // Donner toutes les permissions pour tous les modules
+      for (const [moduleName, moduleInfo] of Object.entries(this.MODULES)) {
+        allPermissions[moduleName] = moduleInfo.permissions || ['view', 'create', 'edit', 'delete', 'manage'];
+      }
+      
+      return allPermissions;
+    }
+    
     const rolePermissions = this.ROLES[user.role]?.permissions || {};
     const customPermissions = user.customPermissions || {};
     
@@ -366,7 +497,7 @@ export class UserManager {
     const finalPermissions = { ...rolePermissions };
     
     for (const [module, perms] of Object.entries(customPermissions)) {
-      if (perms.length > 0) {
+      if (perms && perms.length > 0) {
         finalPermissions[module] = perms;
       }
     }
@@ -376,6 +507,11 @@ export class UserManager {
 
   // Vérifier si un utilisateur a une permission spécifique
   static hasPermission(user, module, permission) {
+    // SuperAdmin a toutes les permissions
+    if (user.isSuperAdmin || user.role === 'superadmin') {
+      return true;
+    }
+    
     const permissions = this.getUserPermissions(user);
     return permissions[module]?.includes(permission) || false;
   }

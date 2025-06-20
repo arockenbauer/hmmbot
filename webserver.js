@@ -87,18 +87,30 @@ app.post('/api/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     
+    console.log(`[API] Tentative de connexion: ${username}`);
+    
     if (!username || !password) {
       return res.status(400).json({ error: 'Nom d\'utilisateur et mot de passe requis' });
     }
 
-    const user = await UserManager.authenticateUser(username, password);
+    // Authentifier l'utilisateur (peut lancer une exception)
+    let user;
+    try {
+      user = await UserManager.authenticateUser(username, password);
+    } catch (authError) {
+      console.log(`[API] Échec d'authentification pour ${username}: ${authError.message}`);
+      return res.status(401).json({ error: authError.message || 'Identifiants incorrects' });
+    }
+
     if (!user) {
       return res.status(401).json({ error: 'Identifiants incorrects' });
     }
 
-    if (!user.isActive) {
+    if (user.isActive === false) {
       return res.status(401).json({ error: 'Compte désactivé' });
     }
+
+    console.log(`[API] ✅ Connexion réussie: ${user.username} (${user.role})`);
 
     const sessionId = UserManager.createSession(user);
     const token = jwt.sign({ sessionId, userId: user.id }, JWT_SECRET, { 

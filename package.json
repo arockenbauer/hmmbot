@@ -11,7 +11,8 @@
     "test-logs": "node test-logs-functionality.js",
     "test-logs-config": "node test-logs-config.js",
     "test-users": "node test-user-system.js",
-    "test-users-quick": "node test-users-quick.js"
+    "test-users-quick": "node test-users-quick.js",
+    "test-user-init": "node test-user-init.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

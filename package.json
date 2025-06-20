@@ -9,9 +9,11 @@
     "deploy-commands": "node src/deploy-commands.js",
     "test-webui": "node test-webui.js",
     "test-logs": "node test-logs-functionality.js",
-    "test-logs-config": "node test-logs-config.js"
+    "test-logs-config": "node test-logs-config.js",
+    "test-users": "node test-user-system.js"
   },
   "dependencies": {
+    "bcrypt": "^5.1.1",
     "body-parser": "^1.20.3",
     "chalk": "^5.3.0",
     "cors": "^2.8.5",

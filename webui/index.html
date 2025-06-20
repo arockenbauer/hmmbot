@@ -50,6 +50,10 @@
           <i class="fas fa-code"></i>
           <span>Embeds</span>
         </a>
+        <a href="#users" class="nav-item" data-section="users">
+          <i class="fas fa-users"></i>
+          <span>Utilisateurs</span>
+        </a>
       </nav>
     </div>
     
@@ -65,6 +69,15 @@
           <div class="status-indicator">
             <span class="status-dot online"></span>
             <span>En ligne</span>
+          </div>
+          <div class="user-info">
+            <div class="user-avatar">
+              <span id="user-avatar-letter">A</span>
+            </div>
+            <div class="user-details">
+              <span class="username" id="current-username">Admin</span>
+              <span class="role" id="current-role">Administrateur</span>
+            </div>
           </div>
           <button id="logout-btn" class="logout-btn">
             <i class="fas fa-sign-out-alt"></i>
@@ -103,6 +116,10 @@
       </div>
       <form id="login-form" class="login-form">
         <div class="input-group">
+          <i class="fas fa-user"></i>
+          <input type="text" id="username" placeholder="Nom d'utilisateur" required>
+        </div>
+        <div class="input-group">
           <i class="fas fa-lock"></i>
           <input type="password" id="password" placeholder="Mot de passe" required>
         </div>
@@ -112,6 +129,12 @@
         </button>
         <div id="login-error" class="error-message"></div>
       </form>
+      
+      <div class="login-help">
+        <p><strong>Comptes par défaut :</strong></p>
+        <p><code>superadmin</code> / <code>SuperAdmin2024!</code></p>
+        <p><em>Créez d'autres utilisateurs depuis la section Utilisateurs</em></p>
+      </div>
     </div>
   </div>
   

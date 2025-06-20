@@ -6,6 +6,11 @@ import jwt from 'jsonwebtoken';
 import bodyParser from 'body-parser';
 import { fileURLToPath } from 'url';
 import { Logger } from './src/utils/logger.js';
+import { UserManager } from './src/utils/userManager.js';
+import dotenv from 'dotenv';
+
+// Charger les variables d'environnement
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,35 +45,98 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'webui')));
 
-// Auth route
-app.post('/api/login', (req, res) => {
-  const { password } = req.body;
-  if (password === PASSWORD) {
-    const token = jwt.sign({ user: 'admin' }, JWT_SECRET, { expiresIn: '2h' });
-    return res.json({ token });
+// Middleware d'authentification
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Token manquant' });
   }
-  res.status(401).json({ error: 'Mot de passe incorrect' });
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const session = UserManager.validateSession(decoded.sessionId);
+    if (!session) {
+      return res.status(401).json({ error: 'Session invalide ou expirée' });
+    }
+    req.user = session;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Token invalide' });
+  }
+};
+
+// Middleware de vérification de permission
+const checkPermission = (module, permission) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Non authentifié' });
+    }
+    
+    if (!UserManager.hasPermission(req.user, module, permission)) {
+      return res.status(403).json({ error: 'Permission insuffisante' });
+    }
+    
+    next();
+  };
+};
+
+// Route de connexion
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Nom d\'utilisateur et mot de passe requis' });
+    }
+
+    const user = await UserManager.authenticateUser(username, password);
+    if (!user) {
+      return res.status(401).json({ error: 'Identifiants incorrects' });
+    }
+
+    if (!user.isActive) {
+      return res.status(401).json({ error: 'Compte désactivé' });
+    }
+
+    const sessionId = UserManager.createSession(user);
+    const token = jwt.sign({ sessionId, userId: user.id }, JWT_SECRET, { 
+      expiresIn: process.env.JWT_EXPIRES_IN || '24h' 
+    });
+
+    res.json({ 
+      token, 
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        permissions: user.permissions,
+        isSuperAdmin: user.isSuperAdmin
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la connexion:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
-// Middleware JWT function
-function authenticateToken(req, res, next) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Non authentifié' });
-  }
-  const token = auth.split(' ')[1];
+// Route de déconnexion
+app.post('/api/logout', authenticateToken, (req, res) => {
   try {
-    jwt.verify(token, JWT_SECRET);
-    next();
-  } catch {
-    res.status(401).json({ error: 'Token invalide' });
+    UserManager.destroySession(req.user.sessionId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erreur lors de la déconnexion:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
-}
+});
 
-// Apply JWT middleware to protected routes (except login)
+// Apply JWT middleware to protected routes (except auth routes)
 app.use('/api', (req, res, next) => {
-  // Skip authentication for login route
-  if (req.path === '/login') {
+  // Skip authentication for auth routes
+  if (req.path === '/login' || req.path === '/logout') {
     return next();
   }
   authenticateToken(req, res, next);
@@ -85,7 +153,7 @@ app.get('/api/config', (req, res) => {
 });
 
 // Save config
-app.post('/api/config', (req, res) => {
+app.post('/api/config', checkPermission('config', 'edit'), (req, res) => {
   try {
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(req.body, null, 2));
     res.json({ success: true });
@@ -95,7 +163,7 @@ app.post('/api/config', (req, res) => {
 });
 
 // Get ticket stats
-app.get('/api/tickets/stats', (req, res) => {
+app.get('/api/tickets/stats', checkPermission('tickets', 'view'), (req, res) => {
   try {
     const activeTicketsPath = path.join(__dirname, 'data', 'active-tickets.json');
     const ticketsPath = path.join(__dirname, 'data', 'tickets.json');
@@ -612,13 +680,200 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'webui', 'index.html'));
 });
 
+// ==========================================================================
+// ROUTES API SYSTÈME D'UTILISATEURS
+// ==========================================================================
+
+// Obtenir les informations de l'utilisateur actuel
+app.get('/api/user/me', authenticateToken, (req, res) => {
+  try {
+    const user = {
+      id: req.user.id,
+      username: req.user.username,
+      email: req.user.email,
+      role: req.user.role,
+      permissions: req.user.permissions,
+      isSuperAdmin: req.user.isSuperAdmin,
+      isActive: req.user.isActive,
+      lastLogin: req.user.lastLogin,
+      createdAt: req.user.createdAt
+    };
+    res.json(user);
+  } catch (error) {
+    console.error('Erreur lors de la récupération de l\'utilisateur:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Lister tous les utilisateurs
+app.get('/api/users', authenticateToken, checkPermission('users', 'view'), (req, res) => {
+  try {
+    const users = UserManager.getAllUsers().map(user => ({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt,
+      permissions: user.permissions
+    }));
+    res.json(users);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des utilisateurs:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Créer un nouvel utilisateur
+app.post('/api/users', authenticateToken, checkPermission('users', 'create'), async (req, res) => {
+  try {
+    const { username, email, password, role, customPermissions } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Nom d\'utilisateur et mot de passe requis' });
+    }
+
+    const newUser = await UserManager.createUser({
+      username,
+      email,
+      password,
+      role: role || 'viewer',
+      customPermissions
+    });
+
+    res.status(201).json({
+      id: newUser.id,
+      username: newUser.username,
+      email: newUser.email,
+      role: newUser.role,
+      isActive: newUser.isActive,
+      createdAt: newUser.createdAt
+    });
+  } catch (error) {
+    console.error('Erreur lors de la création de l\'utilisateur:', error);
+    if (error.message.includes('existe déjà')) {
+      res.status(409).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: 'Erreur lors de la création de l\'utilisateur' });
+    }
+  }
+});
+
+// Mettre à jour un utilisateur
+app.put('/api/users/:id', authenticateToken, checkPermission('users', 'edit'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, email, password, role, isActive, customPermissions } = req.body;
+    
+    const updates = {
+      username,
+      email,
+      role,
+      isActive,
+      customPermissions
+    };
+    
+    // Ajouter le mot de passe seulement s'il est fourni
+    if (password && password.trim()) {
+      updates.password = password;
+    }
+
+    const updatedUser = await UserManager.updateUser(id, updates);
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    res.json({
+      id: updatedUser.id,
+      username: updatedUser.username,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      isActive: updatedUser.isActive,
+      lastLogin: updatedUser.lastLogin,
+      createdAt: updatedUser.createdAt
+    });
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de l\'utilisateur:', error);
+    if (error.message.includes('existe déjà')) {
+      res.status(409).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: 'Erreur lors de la mise à jour de l\'utilisateur' });
+    }
+  }
+});
+
+// Supprimer un utilisateur
+app.delete('/api/users/:id', authenticateToken, checkPermission('users', 'delete'), (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Empêcher la suppression de son propre compte
+    if (id === req.user.id) {
+      return res.status(400).json({ error: 'Vous ne pouvez pas supprimer votre propre compte' });
+    }
+
+    const deleted = UserManager.deleteUser(id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erreur lors de la suppression de l\'utilisateur:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression de l\'utilisateur' });
+  }
+});
+
+// Obtenir les statistiques des utilisateurs
+app.get('/api/users/stats', authenticateToken, checkPermission('users', 'view'), (req, res) => {
+  try {
+    const stats = UserManager.getStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des statistiques:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Obtenir les rôles disponibles
+app.get('/api/users/roles', authenticateToken, (req, res) => {
+  try {
+    const roles = UserManager.getRoles();
+    res.json(roles);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des rôles:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Obtenir les modules et permissions disponibles
+app.get('/api/users/modules', authenticateToken, (req, res) => {
+  try {
+    const modules = UserManager.getModules();
+    res.json(modules);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des modules:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 export function startWebServer() {
-  app.listen(PORT, () => {
+  app.listen(PORT, async () => {
     console.log(`[WEB] Interface web démarrée sur http://localhost:${PORT}`);
     
-    // Créer des logs de test au démarrage pour avoir du contenu
-    setTimeout(() => {
-      Logger.createTestLogs();
-    }, 2000);
+    try {
+      // Initialiser le système d'utilisateurs
+      await UserManager.initialize();
+      console.log('[WEB] Système d\'utilisateurs initialisé');
+      
+      // Créer des logs de test au démarrage pour avoir du contenu
+      setTimeout(() => {
+        Logger.createTestLogs();
+      }, 2000);
+      
+    } catch (error) {
+      console.error('[WEB] Erreur lors de l\'initialisation du système d\'utilisateurs:', error);
+    }
   });
 }

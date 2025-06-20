@@ -11,6 +11,10 @@ class HmmBotAdmin {
     this.logFiles = [];
     this.serverData = {};
     this.token = localStorage.getItem('jwt') || '';
+    this.currentUser = null;
+    this.users = [];
+    this.roles = {};
+    this.modules = {};
     this.init();
   }
 
@@ -19,25 +23,31 @@ class HmmBotAdmin {
     if (!this.token) {
       this.showLogin();
     } else {
-      await this.loadConfig();
-      await this.loadBotStats();
-      await this.loadTicketStats();
-      await this.loadRecentLogs();
-      await this.loadServerData();
-      this.showApp();
-      this.loadSection('dashboard');
-      setInterval(() => {
-        this.loadBotStats();
-        this.loadTicketStats();
-        this.loadRecentLogs();
-        if (this.currentSection === 'logs') {
-          this.loadLogFiles();
-        }
-        if (this.currentSection === 'tickets') {
-          this.loadActiveTickets();
-          this.loadTranscripts();
-        }
-      }, 30000);
+      try {
+        await this.loadCurrentUser();
+        await this.loadConfig();
+        await this.loadBotStats();
+        await this.loadTicketStats();
+        await this.loadRecentLogs();
+        await this.loadServerData();
+        this.showApp();
+        this.loadSection('dashboard');
+        setInterval(() => {
+          this.loadBotStats();
+          this.loadTicketStats();
+          this.loadRecentLogs();
+          if (this.currentSection === 'logs') {
+            this.loadLogFiles();
+          }
+          if (this.currentSection === 'tickets') {
+            this.loadActiveTickets();
+            this.loadTranscripts();
+          }
+        }, 30000);
+      } catch (error) {
+        console.error('Erreur lors de l\'initialisation:', error);
+        this.showLogin();
+      }
     }
   }
 
@@ -162,36 +172,137 @@ class HmmBotAdmin {
   }
 
   async handleLogin() {
+    const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
     const errorDiv = document.getElementById('login-error');
+    
+    if (!username || !password) {
+      errorDiv.textContent = 'Veuillez saisir votre nom d\'utilisateur et votre mot de passe';
+      errorDiv.style.display = 'block';
+      return;
+    }
+    
     try {
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
+        body: JSON.stringify({ username, password })
       });
+      
       if (res.ok) {
         const data = await res.json();
         this.token = data.token;
+        this.currentUser = data.user;
         localStorage.setItem('jwt', this.token);
+        
         await this.loadConfig();
+        await this.loadBotStats();
+        await this.loadTicketStats();
+        await this.loadRecentLogs();
+        await this.loadServerData();
+        
         this.hideLogin();
         this.showApp();
+        this.updateUserInfo();
+        this.updateNavigation();
         this.loadSection('dashboard');
+        
+        this.showNotification('success', `Bienvenue, ${this.currentUser.username} !`);
       } else {
-        errorDiv.textContent = 'Mot de passe incorrect';
+        const error = await res.json();
+        errorDiv.textContent = error.error || 'Erreur de connexion';
         errorDiv.style.display = 'block';
       }
     } catch (error) {
-      errorDiv.textContent = 'Erreur de connexion';
+      console.error('Erreur lors de la connexion:', error);
+      errorDiv.textContent = 'Erreur de connexion au serveur';
       errorDiv.style.display = 'block';
     }
   }
 
-  logout() {
-    localStorage.removeItem('jwt');
-    this.token = '';
-    this.showLogin();
+  async logout() {
+    try {
+      // Informer le serveur de la déconnexion
+      if (this.token) {
+        await fetch('/api/logout', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + this.token }
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors de la déconnexion:', error);
+    } finally {
+      localStorage.removeItem('jwt');
+      this.token = '';
+      this.currentUser = null;
+      this.showLogin();
+    }
+  }
+
+  // Charger les informations de l'utilisateur actuel
+  async loadCurrentUser() {
+    try {
+      const res = await fetch('/api/user/me', {
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+      if (res.status === 401) {
+        throw new Error('Session expirée');
+      }
+      if (!res.ok) throw new Error('Erreur de chargement');
+      this.currentUser = await res.json();
+    } catch (error) {
+      console.error('Erreur lors du chargement de l\'utilisateur:', error);
+      throw error;
+    }
+  }
+
+  // Mettre à jour les informations utilisateur dans l'interface
+  updateUserInfo() {
+    if (!this.currentUser) return;
+    
+    const usernameEl = document.getElementById('current-username');
+    const roleEl = document.getElementById('current-role');
+    
+    if (usernameEl) usernameEl.textContent = this.currentUser.username;
+    if (roleEl) roleEl.textContent = this.getRoleDisplayName(this.currentUser.role);
+  }
+
+  // Mettre à jour la navigation selon les permissions
+  updateNavigation() {
+    if (!this.currentUser) return;
+    
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach(item => {
+      const section = item.dataset.section;
+      if (section && section !== 'dashboard') {
+        if (!this.hasPermission(section, 'view')) {
+          item.style.display = 'none';
+        } else {
+          item.style.display = 'flex';
+        }
+      }
+    });
+  }
+
+  // Vérifier si l'utilisateur a une permission
+  hasPermission(module, permission) {
+    if (!this.currentUser || !this.currentUser.permissions) return false;
+    if (this.currentUser.isSuperAdmin) return true;
+    
+    const modulePermissions = this.currentUser.permissions[module];
+    return modulePermissions && modulePermissions.includes(permission);
+  }
+
+  // Obtenir le nom d'affichage du rôle
+  getRoleDisplayName(role) {
+    const roleNames = {
+      superadmin: 'Super Admin',
+      admin: 'Administrateur',
+      moderator: 'Modérateur',
+      support: 'Support',
+      viewer: 'Lecteur'
+    };
+    return roleNames[role] || role;
   }
 
   toggleSidebar() {
@@ -583,6 +694,16 @@ class HmmBotAdmin {
         // Charger les données du serveur si nécessaire
         if (!this.serverData.channels) {
           this.loadServerData();
+        }
+        break;
+      case 'users':
+        if (this.hasPermission('users', 'view')) {
+          content.innerHTML = this.renderUsers();
+          this.loadUsers();
+          this.loadRoles();
+          this.loadModules();
+        } else {
+          content.innerHTML = '<div class="card"><h2>Accès refusé</h2><p>Vous n\'avez pas les permissions nécessaires pour accéder à cette section.</p></div>';
         }
         break;
       default:
@@ -2392,6 +2513,481 @@ class HmmBotAdmin {
     removeBtn.addEventListener('click', () => {
       fieldsContainer.removeChild(fieldsContainer.lastElementChild);
     });
+  }
+
+  // ==========================================================================
+  // FONCTIONS DE GESTION DES UTILISATEURS
+  // ==========================================================================
+
+  // Charger la liste des utilisateurs
+  async loadUsers() {
+    try {
+      const res = await fetch('/api/users', {
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+      if (res.status === 401) {
+        this.logout();
+        return;
+      }
+      if (!res.ok) throw new Error('Erreur de chargement');
+      this.users = await res.json();
+      this.renderUsersTable();
+    } catch (error) {
+      console.error('Erreur lors du chargement des utilisateurs:', error);
+      this.showNotification('Erreur lors du chargement des utilisateurs.', 'error');
+    }
+  }
+
+  // Charger les rôles disponibles
+  async loadRoles() {
+    try {
+      const res = await fetch('/api/users/roles', {
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+      if (!res.ok) throw new Error('Erreur de chargement');
+      this.roles = await res.json();
+    } catch (error) {
+      console.error('Erreur lors du chargement des rôles:', error);
+    }
+  }
+
+  // Charger les modules disponibles
+  async loadModules() {
+    try {
+      const res = await fetch('/api/users/modules', {
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+      if (!res.ok) throw new Error('Erreur de chargement');
+      this.modules = await res.json();
+    } catch (error) {
+      console.error('Erreur lors du chargement des modules:', error);
+    }
+  }
+
+  // Rendre la section utilisateurs
+  renderUsers() {
+    return `
+      <div class="users-header">
+        <h1>
+          <i class="fas fa-users"></i>
+          Gestion des Utilisateurs
+        </h1>
+        ${this.hasPermission('users', 'create') ? `
+          <button class="btn btn-primary" onclick="app.showCreateUserModal()">
+            <i class="fas fa-plus"></i>
+            Nouvel Utilisateur
+          </button>
+        ` : ''}
+      </div>
+
+      <div class="users-stats" id="users-stats">
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i class="fas fa-users"></i>
+          </div>
+          <div class="stat-value" id="total-users">0</div>
+          <div class="stat-label">Total Utilisateurs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i class="fas fa-user-check"></i>
+          </div>
+          <div class="stat-value" id="active-users">0</div>
+          <div class="stat-label">Utilisateurs Actifs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i class="fas fa-clock"></i>
+          </div>
+          <div class="stat-value" id="active-sessions">0</div>
+          <div class="stat-label">Sessions Actives</div>
+        </div>
+      </div>
+
+      <div class="filters-bar">
+        <div class="filter-group">
+          <label class="filter-label">Filtrer par rôle</label>
+          <select class="filter-select" id="role-filter" onchange="app.filterUsers()">
+            <option value="">Tous les rôles</option>
+            <option value="superadmin">Super Admin</option>
+            <option value="admin">Administrateur</option>
+            <option value="moderator">Modérateur</option>
+            <option value="support">Support</option>
+            <option value="viewer">Lecteur</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Filtrer par statut</label>
+          <select class="filter-select" id="status-filter" onchange="app.filterUsers()">
+            <option value="">Tous les statuts</option>
+            <option value="active">Actif</option>
+            <option value="inactive">Inactif</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="users-table" id="users-table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Utilisateur</th>
+              <th>Rôle</th>
+              <th>Statut</th>
+              <th>Dernière connexion</th>
+              <th>Créé le</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="users-table-body">
+            <tr>
+              <td colspan="6" class="text-center">Chargement...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // Rendre le tableau des utilisateurs
+  renderUsersTable() {
+    const tbody = document.getElementById('users-table-body');
+    if (!tbody) return;
+
+    const roleFilter = document.getElementById('role-filter')?.value || '';
+    const statusFilter = document.getElementById('status-filter')?.value || '';
+
+    let filteredUsers = this.users.filter(user => {
+      const roleMatch = !roleFilter || user.role === roleFilter;
+      const statusMatch = !statusFilter || 
+        (statusFilter === 'active' && user.isActive) ||
+        (statusFilter === 'inactive' && !user.isActive);
+      return roleMatch && statusMatch;
+    });
+
+    if (filteredUsers.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center">Aucun utilisateur trouvé</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = filteredUsers.map(user => `
+      <tr>
+        <td>
+          <div class="user-info-table">
+            <div class="user-avatar-table">
+              ${user.username.charAt(0).toUpperCase()}
+            </div>
+            <div class="details">
+              <div class="username">${user.username}</div>
+             ${user.email ? `<div class="email">${user.email}</div>` : ''}
+            </div>
+          </div>
+        </td>
+        <td>
+          <span class="role-badge ${user.role}">
+            ${this.getRoleDisplayName(user.role)}
+          </span>
+        </td>
+        <td>
+          <span class="user-status ${user.isActive ? 'active' : 'inactive'}">
+            <span class="status-dot"></span>
+            ${user.isActive ? 'Actif' : 'Inactif'}
+          </span>
+        </td>
+        <td>
+          ${user.lastLogin ? new Date(user.lastLogin).toLocaleString('fr-FR') : 'Jamais'}
+        </td>
+        <td>
+          ${new Date(user.createdAt).toLocaleDateString('fr-FR')}
+        </td>
+        <td>
+          <div class="user-actions">
+            ${this.hasPermission('users', 'edit') ? `
+              <button class="action-btn action-btn-edit" onclick="app.showEditUserModal('${user.id}')" title="Modifier">
+                <i class="fas fa-edit"></i>
+              </button>
+            ` : ''}
+            ${this.hasPermission('users', 'delete') && user.id !== this.currentUser.id ? `
+              <button class="action-btn action-btn-delete" onclick="app.deleteUser('${user.id}')" title="Supprimer">
+                <i class="fas fa-trash"></i>
+              </button>
+            ` : ''}
+          </div>
+        </td>
+      </tr>
+    `).join('');
+
+    // Mettre à jour les statistiques
+    this.updateUsersStats();
+  }
+
+  // Mettre à jour les statistiques des utilisateurs
+  async updateUsersStats() {
+    try {
+      const res = await fetch('/api/users/stats', {
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+      if (!res.ok) throw new Error('Erreur de chargement');
+      const stats = await res.json();
+
+      document.getElementById('total-users').textContent = stats.totalUsers || 0;
+      document.getElementById('active-users').textContent = stats.activeUsers || 0;
+      document.getElementById('active-sessions').textContent = stats.activeSessions || 0;
+    } catch (error) {
+      console.error('Erreur lors du chargement des statistiques:', error);
+    }
+  }
+
+  // Filtrer les utilisateurs
+  filterUsers() {
+    this.renderUsersTable();
+  }
+
+  // Afficher le modal de création d'utilisateur
+  showCreateUserModal() {
+    this.showUserModal();
+  }
+
+  // Afficher le modal d'édition d'utilisateur
+  showEditUserModal(userId) {
+    const user = this.users.find(u => u.id === userId);
+    if (!user) return;
+    this.showUserModal(user);
+  }
+
+  // Afficher le modal utilisateur (création/édition)
+  showUserModal(user = null) {
+    const isEdit = !!user;
+    const title = isEdit ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur';
+
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay active';
+    modalOverlay.innerHTML = `
+      <div class="modal modal-large">
+        <div class="modal-header">
+          <h3>${title}</h3>
+          <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-content">
+          <form class="user-form" onsubmit="app.${isEdit ? 'updateUser' : 'createUser'}(event)">
+            ${isEdit ? `<input type="hidden" name="userId" value="${user.id}">` : ''}
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Nom d'utilisateur *</label>
+                <input type="text" name="username" class="form-input" required 
+                       value="${user?.username || ''}" placeholder="Nom d'utilisateur">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" name="email" class="form-input" 
+                       value="${user?.email || ''}" placeholder="email@exemple.com">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">${isEdit ? 'Nouveau mot de passe' : 'Mot de passe *'}</label>
+                <input type="password" name="password" class="form-input" 
+                       ${!isEdit ? 'required' : ''} placeholder="Mot de passe">
+                ${isEdit ? '<small class="form-help">Laissez vide pour conserver le mot de passe actuel</small>' : ''}
+              </div>
+              <div class="form-group">
+                <label class="form-label">Rôle</label>
+                <select name="role" class="form-select">
+                  ${Object.entries(this.roles).map(([roleKey, roleData]) => `
+                    <option value="${roleKey}" ${user?.role === roleKey ? 'selected' : ''}>
+                      ${roleData.name}
+                    </option>
+                  `).join('')}
+                </select>
+              </div>
+            </div>
+
+            ${isEdit ? `
+              <div class="form-group">
+                <label class="form-label">
+                  <input type="checkbox" name="isActive" ${user.isActive ? 'checked' : ''}>
+                  Compte actif
+                </label>
+              </div>
+            ` : ''}
+
+            <div class="permissions-section">
+              <h3>Permissions personnalisées</h3>
+              <p>Cochez les permissions spécifiques pour cet utilisateur (remplace les permissions du rôle).</p>
+              
+              <div class="permissions-grid">
+                ${Object.entries(this.modules).map(([moduleKey, moduleData]) => `
+                  <div class="permission-module">
+                    <div class="permission-module-header">
+                      <i class="${moduleData.icon}"></i>
+                      <h4>${moduleData.name}</h4>
+                    </div>
+                    <div class="permission-checkboxes">
+                      ${moduleData.permissions.map(permission => `
+                        <div class="permission-checkbox">
+                          <input type="checkbox" 
+                                 name="permissions[${moduleKey}][]" 
+                                 value="${permission}"
+                                 id="perm-${moduleKey}-${permission}"
+                                 ${user?.permissions?.[moduleKey]?.includes(permission) ? 'checked' : ''}>
+                          <label for="perm-${moduleKey}-${permission}">${permission}</label>
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i>
+                ${isEdit ? 'Mettre à jour' : 'Créer'}
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">
+                <i class="fas fa-times"></i>
+                Annuler
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modalOverlay);
+  }
+
+  // Créer un utilisateur
+  async createUser(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    
+    const userData = {
+      username: formData.get('username'),
+      email: formData.get('email'),
+      password: formData.get('password'),
+      role: formData.get('role'),
+      customPermissions: this.extractPermissionsFromForm(formData)
+    };
+
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + this.token
+        },
+        body: JSON.stringify(userData)
+      });
+
+      if (res.ok) {
+        const newUser = await res.json();
+        this.showNotification('Utilisateur créé avec succès !', 'success');
+        document.querySelector('.modal-overlay').remove();
+        this.loadUsers();
+      } else {
+        const error = await res.json();
+        this.showNotification(error.error || 'Erreur lors de la création', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la création:', error);
+      this.showNotification('Erreur de connexion', 'error');
+    }
+  }
+
+  // Mettre à jour un utilisateur
+  async updateUser(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const userId = formData.get('userId');
+    
+    const userData = {
+      username: formData.get('username'),
+      email: formData.get('email'),
+      role: formData.get('role'),
+      isActive: formData.has('isActive'),
+      customPermissions: this.extractPermissionsFromForm(formData)
+    };
+
+    // Ajouter le mot de passe seulement s'il est fourni
+    const password = formData.get('password');
+    if (password && password.trim()) {
+      userData.password = password;
+    }
+
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + this.token
+        },
+        body: JSON.stringify(userData)
+      });
+
+      if (res.ok) {
+        this.showNotification('Utilisateur mis à jour avec succès !', 'success');
+        document.querySelector('.modal-overlay').remove();
+        this.loadUsers();
+      } else {
+        const error = await res.json();
+        this.showNotification(error.error || 'Erreur lors de la mise à jour', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour:', error);
+      this.showNotification('Erreur de connexion', 'error');
+    }
+  }
+
+  // Extraire les permissions du formulaire
+  extractPermissionsFromForm(formData) {
+    const permissions = {};
+    
+    // Parcourir tous les champs de permissions
+    for (const [key, value] of formData.entries()) {
+      if (key.startsWith('permissions[') && key.endsWith('][]')) {
+        const module = key.match(/permissions\[(.+)\]\[\]/)?.[1];
+        if (module) {
+          if (!permissions[module]) {
+            permissions[module] = [];
+          }
+          permissions[module].push(value);
+        }
+      }
+    }
+    
+    return permissions;
+  }
+
+  // Supprimer un utilisateur
+  async deleteUser(userId) {
+    const user = this.users.find(u => u.id === userId);
+    if (!user) return;
+
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer l'utilisateur "${user.username}" ?\n\nCette action est irréversible.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+
+      if (res.ok) {
+        this.showNotification('Utilisateur supprimé avec succès !', 'success');
+        this.loadUsers();
+      } else {
+        const error = await res.json();
+        this.showNotification(error.error || 'Erreur lors de la suppression', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      this.showNotification('Erreur de connexion', 'error');
+    }
   }
 
 }

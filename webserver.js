@@ -707,11 +707,6 @@ app.post('/api/bot/logs/config', (req, res) => {
   }
 });
 
-// Fallback to index.html for SPA
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'webui', 'index.html'));
-});
-
 // ==========================================================================
 // ROUTES API SYSTÈME D'UTILISATEURS
 // ==========================================================================
@@ -917,6 +912,11 @@ app.get('/api/users/modules', authenticateToken, (req, res) => {
     console.error('Stack trace:', error.stack);
     res.status(500).json({ error: 'Erreur serveur', details: error.message });
   }
+});
+
+// Fallback to index.html for SPA (DOIT ÊTRE EN DERNIER)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'webui', 'index.html'));
 });
 
 export async function startWebServer() {

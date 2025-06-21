@@ -668,5 +668,3 @@ export class UserManager {
     return false;
   }
 }
-
-export { UserManager };

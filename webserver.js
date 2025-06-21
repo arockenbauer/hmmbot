@@ -56,13 +56,23 @@ const authenticateToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+    
+    // Vérifier que UserManager est initialisé
+    if (typeof UserManager.validateSession !== 'function') {
+      console.error('[AUTH] UserManager.validateSession n\'est pas une fonction');
+      return res.status(503).json({ error: 'Système d\'authentification non initialisé' });
+    }
+    
     const session = UserManager.validateSession(decoded.sessionId);
     if (!session) {
+      console.log(`[AUTH] Session invalide ou expirée: ${decoded.sessionId}`);
       return res.status(401).json({ error: 'Session invalide ou expirée' });
     }
+    
     req.user = { ...session, sessionId: decoded.sessionId };
     next();
   } catch (error) {
+    console.error('[AUTH] Erreur de validation du token:', error.message);
     return res.status(401).json({ error: 'Token invalide' });
   }
 };
@@ -137,11 +147,21 @@ app.post('/api/login', async (req, res) => {
 // Route de déconnexion
 app.post('/api/logout', authenticateToken, (req, res) => {
   try {
-    UserManager.destroySession(req.user.sessionId);
+    console.log(`[API] Déconnexion demandée pour la session: ${req.user.sessionId}`);
+    
+    if (typeof UserManager.destroySession !== 'function') {
+      console.error('[API] UserManager.destroySession n\'est pas une fonction');
+      console.error('[API] UserManager disponible:', Object.getOwnPropertyNames(UserManager));
+      return res.status(500).json({ error: 'Système d\'utilisateurs non initialisé' });
+    }
+    
+    const result = UserManager.destroySession(req.user.sessionId);
+    console.log(`[API] Session détruite: ${result}`);
     res.json({ success: true });
   } catch (error) {
     console.error('Erreur lors de la déconnexion:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ error: 'Erreur serveur', details: error.message });
   }
 });
 
@@ -720,6 +740,11 @@ app.get('/api/user/me', authenticateToken, (req, res) => {
 // Lister tous les utilisateurs
 app.get('/api/users', authenticateToken, checkPermission('users', 'view'), (req, res) => {
   try {
+    if (typeof UserManager.getAllUsers !== 'function') {
+      console.error('[API] UserManager.getAllUsers n\'est pas une fonction');
+      return res.status(503).json({ error: 'Système d\'utilisateurs non initialisé' });
+    }
+    
     const users = UserManager.getAllUsers();
     console.log(`[API] Récupération de ${users.length} utilisateurs`);
     
@@ -769,10 +794,15 @@ app.post('/api/users', authenticateToken, checkPermission('users', 'create'), as
     });
   } catch (error) {
     console.error('Erreur lors de la création de l\'utilisateur:', error);
+    console.error('Stack trace:', error.stack);
+    
     if (error.message.includes('existe déjà')) {
       res.status(409).json({ error: error.message });
     } else {
-      res.status(500).json({ error: 'Erreur lors de la création de l\'utilisateur' });
+      res.status(500).json({ 
+        error: 'Erreur lors de la création de l\'utilisateur',
+        details: error.message
+      });
     }
   }
 });
@@ -856,6 +886,11 @@ app.get('/api/users/stats', authenticateToken, checkPermission('users', 'view'),
 // Obtenir les rôles disponibles
 app.get('/api/users/roles', authenticateToken, (req, res) => {
   try {
+    if (typeof UserManager.getRoles !== 'function') {
+      console.error('[API] UserManager.getRoles n\'est pas une fonction');
+      return res.status(503).json({ error: 'Système d\'utilisateurs non initialisé' });
+    }
+    
     const roles = UserManager.getRoles();
     console.log(`[API] Récupération des rôles: ${Object.keys(roles).length} rôles disponibles`);
     res.json(roles);
@@ -869,6 +904,11 @@ app.get('/api/users/roles', authenticateToken, (req, res) => {
 // Obtenir les modules et permissions disponibles
 app.get('/api/users/modules', authenticateToken, (req, res) => {
   try {
+    if (typeof UserManager.getModules !== 'function') {
+      console.error('[API] UserManager.getModules n\'est pas une fonction');
+      return res.status(503).json({ error: 'Système d\'utilisateurs non initialisé' });
+    }
+    
     const modules = UserManager.getModules();
     console.log(`[API] Récupération des modules: ${Object.keys(modules).length} modules disponibles`);
     res.json(modules);
@@ -879,22 +919,26 @@ app.get('/api/users/modules', authenticateToken, (req, res) => {
   }
 });
 
-export function startWebServer() {
-  app.listen(PORT, async () => {
-    console.log(`[WEB] Interface web démarrée sur http://localhost:${PORT}`);
+export async function startWebServer() {
+  try {
+    // Initialiser le système d'utilisateurs AVANT de démarrer le serveur
+    console.log('[WEB] Initialisation du système d\'utilisateurs...');
+    await UserManager.initialize();
+    console.log('[WEB] ✅ Système d\'utilisateurs initialisé');
     
-    try {
-      // Initialiser le système d'utilisateurs
-      await UserManager.initialize();
-      console.log('[WEB] Système d\'utilisateurs initialisé');
+    // Démarrer le serveur web
+    app.listen(PORT, () => {
+      console.log(`[WEB] ✅ Interface web démarrée sur http://localhost:${PORT}`);
       
       // Créer des logs de test au démarrage pour avoir du contenu
       setTimeout(() => {
         Logger.createTestLogs();
       }, 2000);
-      
-    } catch (error) {
-      console.error('[WEB] Erreur lors de l\'initialisation du système d\'utilisateurs:', error);
-    }
-  });
+    });
+    
+  } catch (error) {
+    console.error('[WEB] ❌ Erreur lors de l\'initialisation du système d\'utilisateurs:', error);
+    console.error('[WEB] Stack trace:', error.stack);
+    process.exit(1);
+  }
 }

@@ -2587,12 +2587,24 @@ class HmmBotAdmin {
         this.logout();
         return;
       }
-      if (!res.ok) throw new Error('Erreur de chargement');
-      this.users = await res.json();
-      this.renderUsersTable();
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Erreur serveur:', errorText);
+        throw new Error(`Erreur ${res.status}: ${res.statusText}`);
+      }
+      
+      const responseText = await res.text();
+      try {
+        this.users = JSON.parse(responseText);
+        this.renderUsersTable();
+      } catch (jsonError) {
+        console.error('Erreur de parsing JSON:', jsonError);
+        console.error('Réponse reçue:', responseText);
+        throw new Error('Réponse invalide du serveur');
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des utilisateurs:', error);
-      this.showNotification('Erreur lors du chargement des utilisateurs.', 'error');
+      this.showNotification(`Erreur lors du chargement des utilisateurs: ${error.message}`, 'error');
     }
   }
 
@@ -2602,10 +2614,23 @@ class HmmBotAdmin {
       const res = await fetch('/api/users/roles', {
         headers: { Authorization: 'Bearer ' + this.token }
       });
-      if (!res.ok) throw new Error('Erreur de chargement');
-      this.roles = await res.json();
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Erreur serveur:', errorText);
+        throw new Error(`Erreur ${res.status}: ${res.statusText}`);
+      }
+      
+      const responseText = await res.text();
+      try {
+        this.roles = JSON.parse(responseText);
+      } catch (jsonError) {
+        console.error('Erreur de parsing JSON pour les rôles:', jsonError);
+        console.error('Réponse reçue:', responseText);
+        throw new Error('Réponse invalide du serveur');
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des rôles:', error);
+      this.showNotification(`Erreur lors du chargement des rôles: ${error.message}`, 'error');
     }
   }
 
@@ -2615,10 +2640,23 @@ class HmmBotAdmin {
       const res = await fetch('/api/users/modules', {
         headers: { Authorization: 'Bearer ' + this.token }
       });
-      if (!res.ok) throw new Error('Erreur de chargement');
-      this.modules = await res.json();
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Erreur serveur:', errorText);
+        throw new Error(`Erreur ${res.status}: ${res.statusText}`);
+      }
+      
+      const responseText = await res.text();
+      try {
+        this.modules = JSON.parse(responseText);
+      } catch (jsonError) {
+        console.error('Erreur de parsing JSON pour les modules:', jsonError);
+        console.error('Réponse reçue:', responseText);
+        throw new Error('Réponse invalide du serveur');
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des modules:', error);
+      this.showNotification(`Erreur lors du chargement des modules: ${error.message}`, 'error');
     }
   }
 

@@ -459,8 +459,21 @@ export class UserManager {
       return null;
     }
 
-    // Mettre à jour la dernière activité
+    // Récupérer l'utilisateur actuel pour avoir les permissions à jour
+    const users = this.loadUsers();
+    const user = users[session.userId];
+    
+    if (!user || !user.isActive) {
+      // L'utilisateur n'exists plus ou est désactivé, invalider la session
+      delete sessions[sessionId];
+      this.saveSessions(sessions);
+      return null;
+    }
+
+    // Mettre à jour la dernière activité et les permissions actuelles
     session.lastActivity = new Date().toISOString();
+    session.permissions = this.getUserPermissions(user);
+    session.role = user.role; // Mettre à jour le rôle au cas où il aurait changé
     sessions[sessionId] = session;
     this.saveSessions(sessions);
 
@@ -511,7 +524,14 @@ export class UserManager {
       return allPermissions;
     }
     
-    const rolePermissions = this.ROLES[user.role]?.permissions || {};
+    // Chercher d'abord dans les rôles système, puis dans les rôles personnalisés
+    let rolePermissions = {};
+    if (this.ROLES[user.role]) {
+      rolePermissions = this.ROLES[user.role].permissions || {};
+    } else if (this.CUSTOM_ROLES[user.role]) {
+      rolePermissions = this.CUSTOM_ROLES[user.role].permissions || {};
+    }
+    
     const customPermissions = user.customPermissions || {};
     
     // Fusionner les permissions du rôle avec les permissions personnalisées

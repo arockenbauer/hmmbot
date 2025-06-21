@@ -174,8 +174,83 @@ app.use('/api', (req, res, next) => {
   authenticateToken(req, res, next);
 });
 
+// Routes pour la gestion des rôles personnalisés
+app.get('/api/roles/custom', checkPermission('users', 'manage_roles'), (req, res) => {
+  try {
+    const customRoles = UserManager.getCustomRoles();
+    res.json(customRoles);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des rôles personnalisés:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.get('/api/roles/custom/:roleId', checkPermission('users', 'manage_roles'), (req, res) => {
+  try {
+    const { roleId } = req.params;
+    const customRoles = UserManager.getCustomRoles();
+    
+    if (!customRoles[roleId]) {
+      return res.status(404).json({ error: 'Rôle non trouvé' });
+    }
+    
+    res.json(customRoles[roleId]);
+  } catch (error) {
+    console.error('Erreur lors de la récupération du rôle:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.post('/api/roles/custom', checkPermission('users', 'manage_roles'), (req, res) => {
+  try {
+    const { name, color, permissions } = req.body;
+    
+    if (!name || !permissions) {
+      return res.status(400).json({ error: 'Nom et permissions requis' });
+    }
+    
+    const roleData = {
+      name,
+      color,
+      permissions,
+      createdBy: req.user.username
+    };
+    
+    const newRole = UserManager.createCustomRole(roleData);
+    res.json({ id: newRole.id, message: 'Rôle créé avec succès' });
+  } catch (error) {
+    console.error('Erreur lors de la création du rôle:', error);
+    res.status(500).json({ error: error.message || 'Erreur serveur' });
+  }
+});
+
+app.put('/api/roles/custom/:roleId', checkPermission('users', 'manage_roles'), (req, res) => {
+  try {
+    const { roleId } = req.params;
+    const { name, color, permissions } = req.body;
+    
+    const updatedRole = UserManager.updateCustomRole(roleId, { name, color, permissions });
+    res.json({ message: 'Rôle mis à jour avec succès', role: updatedRole });
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du rôle:', error);
+    res.status(500).json({ error: error.message || 'Erreur serveur' });
+  }
+});
+
+app.delete('/api/roles/custom/:roleId', checkPermission('users', 'manage_roles'), (req, res) => {
+  try {
+    const { roleId } = req.params;
+    
+    UserManager.deleteCustomRole(roleId);
+    res.json({ message: 'Rôle supprimé avec succès' });
+  } catch (error) {
+    console.error('Erreur lors de la suppression du rôle:', error);
+    res.status(500).json({ error: error.message || 'Erreur serveur' });
+  }
+});
+
 // Get config
-app.get('/api/config', (req, res) => {
+app.get('/api/config', checkPermission('config', 'view'), (req, res) => {
   try {
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
     res.json(config);
@@ -878,6 +953,31 @@ app.get('/api/users/stats', authenticateToken, checkPermission('users', 'view'),
   }
 });
 
+// Obtenir les informations de l'utilisateur connecté
+app.get('/api/user/me', authenticateToken, (req, res) => {
+  try {
+    const user = UserManager.getUserById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    res.json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      permissions: user.permissions,
+      isActive: user.isActive,
+      isSuperAdmin: user.isSuperAdmin,
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération de l\'utilisateur:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // Obtenir les rôles disponibles
 app.get('/api/users/roles', authenticateToken, (req, res) => {
   try {
@@ -911,6 +1011,97 @@ app.get('/api/users/modules', authenticateToken, (req, res) => {
     console.error('Erreur lors de la récupération des modules:', error);
     console.error('Stack trace:', error.stack);
     res.status(500).json({ error: 'Erreur serveur', details: error.message });
+  }
+});
+
+// ROUTES POUR LA GESTION DES RÔLES
+
+// Obtenir tous les rôles personnalisés
+app.get('/api/roles/custom', authenticateToken, checkPermission('users', 'manage_roles'), (req, res) => {
+  try {
+    if (typeof UserManager.getCustomRoles !== 'function') {
+      console.error('[API] UserManager.getCustomRoles n\'est pas une fonction');
+      return res.status(503).json({ error: 'Système d\'utilisateurs non initialisé' });
+    }
+    
+    const customRoles = UserManager.getCustomRoles();
+    console.log(`[API] Récupération des rôles personnalisés: ${Object.keys(customRoles).length} rôles`);
+    res.json(customRoles);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des rôles personnalisés:', error);
+    res.status(500).json({ error: 'Erreur serveur', details: error.message });
+  }
+});
+
+// Créer un rôle personnalisé
+app.post('/api/roles/custom', authenticateToken, checkPermission('users', 'manage_roles'), async (req, res) => {
+  try {
+    const { name, color, permissions } = req.body;
+    
+    if (!name || !permissions) {
+      return res.status(400).json({ error: 'Nom et permissions requis' });
+    }
+
+    if (typeof UserManager.createCustomRole !== 'function') {
+      console.error('[API] UserManager.createCustomRole n\'est pas une fonction');
+      return res.status(503).json({ error: 'Système d\'utilisateurs non initialisé' });
+    }
+
+    const roleData = {
+      name,
+      color: color || '#747d8c',
+      permissions,
+      createdBy: req.user.username
+    };
+
+    const newRole = UserManager.createCustomRole(roleData);
+    console.log(`[API] Rôle personnalisé créé: ${newRole.name} par ${req.user.username}`);
+    
+    res.json({ success: true, role: newRole });
+  } catch (error) {
+    console.error('Erreur lors de la création du rôle personnalisé:', error);
+    res.status(500).json({ error: error.message || 'Erreur serveur' });
+  }
+});
+
+// Mettre à jour un rôle personnalisé
+app.put('/api/roles/custom/:roleId', authenticateToken, checkPermission('users', 'manage_roles'), async (req, res) => {
+  try {
+    const { roleId } = req.params;
+    const updates = req.body;
+
+    if (typeof UserManager.updateCustomRole !== 'function') {
+      console.error('[API] UserManager.updateCustomRole n\'est pas une fonction');
+      return res.status(503).json({ error: 'Système d\'utilisateurs non initialisé' });
+    }
+
+    const updatedRole = UserManager.updateCustomRole(roleId, updates);
+    console.log(`[API] Rôle personnalisé mis à jour: ${updatedRole.name} par ${req.user.username}`);
+    
+    res.json({ success: true, role: updatedRole });
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du rôle personnalisé:', error);
+    res.status(500).json({ error: error.message || 'Erreur serveur' });
+  }
+});
+
+// Supprimer un rôle personnalisé
+app.delete('/api/roles/custom/:roleId', authenticateToken, checkPermission('users', 'manage_roles'), async (req, res) => {
+  try {
+    const { roleId } = req.params;
+
+    if (typeof UserManager.deleteCustomRole !== 'function') {
+      console.error('[API] UserManager.deleteCustomRole n\'est pas une fonction');
+      return res.status(503).json({ error: 'Système d\'utilisateurs non initialisé' });
+    }
+
+    const deleted = UserManager.deleteCustomRole(roleId);
+    console.log(`[API] Rôle personnalisé supprimé: ${roleId} par ${req.user.username}`);
+    
+    res.json({ success: deleted });
+  } catch (error) {
+    console.error('Erreur lors de la suppression du rôle personnalisé:', error);
+    res.status(500).json({ error: error.message || 'Erreur serveur' });
   }
 });
 

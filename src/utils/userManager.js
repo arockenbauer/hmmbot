@@ -23,42 +23,47 @@ export class UserManager {
     tickets: {
       name: 'Système Tickets',
       icon: 'fas fa-ticket-alt',
-      permissions: ['view', 'create', 'close', 'manage']
+      permissions: ['view', 'edit']
     },
     moderation: {
       name: 'Modération',
       icon: 'fas fa-shield-alt',
-      permissions: ['view', 'ban', 'kick', 'mute', 'warn']
+      permissions: ['view', 'edit']
     },
     economy: {
       name: 'Économie',
       icon: 'fas fa-coins',
-      permissions: ['view', 'manage', 'give', 'remove']
+      permissions: ['view', 'edit']
     },
     channels: {
       name: 'Salons',
       icon: 'fas fa-hashtag',
-      permissions: ['view', 'create', 'edit', 'delete']
+      permissions: ['view', 'edit']
     },
     roles: {
       name: 'Rôles',
       icon: 'fas fa-users-cog',
-      permissions: ['view', 'create', 'edit', 'delete', 'assign']
+      permissions: ['view', 'edit']
     },
     logs: {
       name: 'Logs',
       icon: 'fas fa-file-alt',
-      permissions: ['view', 'download', 'delete']
+      permissions: ['view']
     },
     embeds: {
       name: 'Embeds',
       icon: 'fas fa-code',
-      permissions: ['view', 'create', 'edit', 'send']
+      permissions: ['view', 'edit']
+    },
+    config: {
+      name: 'Configuration',
+      icon: 'fas fa-cog',
+      permissions: ['view', 'edit']
     },
     users: {
       name: 'Utilisateurs',
       icon: 'fas fa-users',
-      permissions: ['view', 'create', 'edit', 'delete', 'manage_permissions']
+      permissions: ['view', 'create', 'edit', 'delete', 'manage_roles']
     }
   };
 
@@ -70,50 +75,62 @@ export class UserManager {
       permissions: Object.keys(UserManager.MODULES).reduce((acc, module) => {
         acc[module] = UserManager.MODULES[module].permissions;
         return acc;
-      }, {})
+      }, {}),
+      isSystem: true
     },
     admin: {
       name: 'Administrateur',
       color: '#3742fa',
       permissions: {
         dashboard: ['view'],
-        tickets: ['view', 'create', 'close', 'manage'],
-        moderation: ['view', 'ban', 'kick', 'mute', 'warn'],
-        economy: ['view', 'manage'],
-        channels: ['view', 'create', 'edit'],
-        roles: ['view', 'assign'],
-        logs: ['view', 'download'],
-        embeds: ['view', 'create', 'edit', 'send']
-      }
+        tickets: ['view', 'edit'],
+        moderation: ['view', 'edit'],
+        economy: ['view', 'edit'],
+        channels: ['view', 'edit'],
+        roles: ['view', 'edit'],
+        logs: ['view', 'edit'],
+        embeds: ['view', 'edit'],
+        config: ['view', 'edit'],
+        users: ['view', 'create', 'edit', 'delete']
+      },
+      isSystem: true
     },
     moderator: {
       name: 'Modérateur',
       color: '#2ed573',
       permissions: {
         dashboard: ['view'],
-        tickets: ['view', 'create', 'close'],
-        moderation: ['view', 'kick', 'mute', 'warn'],
+        tickets: ['view', 'edit'],
+        moderation: ['view', 'edit'],
         economy: ['view'],
-        logs: ['view']
-      }
+        logs: ['view'],
+        users: ['view']
+      },
+      isSystem: true
     },
     support: {
       name: 'Support',
       color: '#ffa502',
       permissions: {
         dashboard: ['view'],
-        tickets: ['view', 'create', 'close'],
-        logs: ['view']
-      }
+        tickets: ['view', 'edit'],
+        logs: ['view'],
+        users: ['view']
+      },
+      isSystem: true
     },
     viewer: {
       name: 'Lecteur',
       color: '#747d8c',
       permissions: {
         dashboard: ['view']
-      }
+      },
+      isSystem: true
     }
   };
+
+  // Rôles personnalisés (chargés depuis un fichier)
+  static CUSTOM_ROLES = {};
 
   // Initialiser le système d'utilisateurs
   static async initialize() {
@@ -124,11 +141,15 @@ export class UserManager {
       console.log('[USER] Création du dossier data...');
       this.ensureDataDir();
       
-      // Étape 2: Charger les utilisateurs existants
+      // Étape 2: Charger les rôles personnalisés
+      console.log('[USER] Chargement des rôles personnalisés...');
+      this.loadCustomRoles();
+
+      // Étape 3: Charger les utilisateurs existants
       console.log('[USER] Chargement des utilisateurs...');
       const users = this.loadUsers();
       
-      // Étape 3: Créer le SuperAdmin s'il n'existe pas
+      // Étape 4: Créer le SuperAdmin s'il n'existe pas
       if (!users.superadmin) {
         console.log('[USER] Création du compte SuperAdmin...');
         
@@ -162,7 +183,7 @@ export class UserManager {
         console.log('[USER] ✅ SuperAdmin déjà présent');
       }
       
-      // Étape 4: Nettoyer les anciennes sessions (optionnel, ne doit pas faire échouer l'init)
+      // Étape 5: Nettoyer les anciennes sessions (optionnel, ne doit pas faire échouer l'init)
       try {
         this.cleanupExpiredSessions();
         console.log('[USER] ✅ Sessions nettoyées');
@@ -170,7 +191,7 @@ export class UserManager {
         console.warn('[USER] ⚠️ Erreur lors du nettoyage des sessions:', error.message);
       }
       
-      // Étape 5: Obtenir les stats (optionnel)
+      // Étape 6: Obtenir les stats (optionnel)
       try {
         const stats = this.getStats();
         console.log(`[USER] ✅ Système initialisé - ${stats.totalUsers} utilisateurs, ${stats.activeSessions} sessions actives`);
@@ -644,14 +665,140 @@ export class UserManager {
     return stats;
   }
 
-  // Obtenir les rôles disponibles
+  // Obtenir les rôles disponibles (système + personnalisés)
   static getRoles() {
+    return { ...this.ROLES, ...this.CUSTOM_ROLES };
+  }
+
+  // Obtenir seulement les rôles système
+  static getSystemRoles() {
     return this.ROLES;
+  }
+
+  // Obtenir seulement les rôles personnalisés
+  static getCustomRoles() {
+    return this.CUSTOM_ROLES;
   }
 
   // Obtenir les modules et permissions disponibles
   static getModules() {
     return this.MODULES;
+  }
+
+  // Charger les rôles personnalisés
+  static loadCustomRoles() {
+    const rolesFile = path.join(__dirname, '../../data/custom-roles.json');
+    if (fs.existsSync(rolesFile)) {
+      try {
+        this.CUSTOM_ROLES = JSON.parse(fs.readFileSync(rolesFile, 'utf8'));
+      } catch (error) {
+        Logger.error('Erreur lors du chargement des rôles personnalisés:', error);
+        this.CUSTOM_ROLES = {};
+      }
+    }
+  }
+
+  // Sauvegarder les rôles personnalisés
+  static saveCustomRoles() {
+    const rolesFile = path.join(__dirname, '../../data/custom-roles.json');
+    try {
+      fs.writeFileSync(rolesFile, JSON.stringify(this.CUSTOM_ROLES, null, 2));
+      return true;
+    } catch (error) {
+      Logger.error('Erreur lors de la sauvegarde des rôles personnalisés:', error);
+      return false;
+    }
+  }
+
+  // Créer un rôle personnalisé
+  static createCustomRole(roleData) {
+    const roleId = roleData.id || crypto.randomUUID();
+    
+    // Vérifier que le rôle n'existe pas déjà
+    if (this.ROLES[roleId] || this.CUSTOM_ROLES[roleId]) {
+      throw new Error('Un rôle avec cet identifiant existe déjà');
+    }
+
+    const newRole = {
+      id: roleId,
+      name: roleData.name,
+      color: roleData.color || '#747d8c',
+      permissions: roleData.permissions || {},
+      isSystem: false,
+      createdAt: new Date().toISOString(),
+      createdBy: roleData.createdBy || null
+    };
+
+    this.CUSTOM_ROLES[roleId] = newRole;
+    
+    if (this.saveCustomRoles()) {
+      console.log(`[UserManager] Rôle personnalisé créé: ${newRole.name}`);
+      return newRole;
+    } else {
+      delete this.CUSTOM_ROLES[roleId];
+      throw new Error('Erreur lors de la sauvegarde du rôle');
+    }
+  }
+
+  // Mettre à jour un rôle personnalisé
+  static updateCustomRole(roleId, updates) {
+    if (this.ROLES[roleId]) {
+      throw new Error('Impossible de modifier un rôle système');
+    }
+    
+    if (!this.CUSTOM_ROLES[roleId]) {
+      throw new Error('Rôle personnalisé non trouvé');
+    }
+
+    const updatedRole = {
+      ...this.CUSTOM_ROLES[roleId],
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+
+    this.CUSTOM_ROLES[roleId] = updatedRole;
+    
+    if (this.saveCustomRoles()) {
+      console.log(`[UserManager] Rôle personnalisé mis à jour: ${updatedRole.name}`);
+      return updatedRole;
+    } else {
+      throw new Error('Erreur lors de la sauvegarde du rôle');
+    }
+  }
+
+  // Supprimer un rôle personnalisé
+  static deleteCustomRole(roleId) {
+    if (this.ROLES[roleId]) {
+      throw new Error('Impossible de supprimer un rôle système');
+    }
+    
+    if (!this.CUSTOM_ROLES[roleId]) {
+      throw new Error('Rôle personnalisé non trouvé');
+    }
+
+    // Vérifier s'il y a des utilisateurs avec ce rôle
+    const users = this.loadUsers();
+    const usersWithRole = Object.values(users).filter(u => u.role === roleId);
+    
+    if (usersWithRole.length > 0) {
+      // Fallback vers le rôle viewer
+      usersWithRole.forEach(user => {
+        user.role = 'viewer';
+        user.customPermissions = this.CUSTOM_ROLES[roleId].permissions;
+      });
+      this.saveUsers(users);
+      console.log(`[UserManager] ${usersWithRole.length} utilisateurs ont été basculés vers le rôle 'viewer' avec permissions personnalisées`);
+    }
+
+    const deletedRole = this.CUSTOM_ROLES[roleId];
+    delete this.CUSTOM_ROLES[roleId];
+    
+    if (this.saveCustomRoles()) {
+      console.log(`[UserManager] Rôle personnalisé supprimé: ${deletedRole.name}`);
+      return true;
+    } else {
+      throw new Error('Erreur lors de la suppression du rôle');
+    }
   }
 
   // Détruire une session

@@ -72,12 +72,12 @@ class HmmBotAdmin {
       logs: {
         name: 'Logs',
         icon: 'fas fa-file-alt',
-        permissions: ['view', 'edit']
+        permissions: ['view', 'config']
       },
       embeds: {
         name: 'Embeds',
         icon: 'fas fa-code',
-        permissions: ['view', 'edit']
+        permissions: ['view', 'edit', 'send']
       },
       users: {
         name: 'Utilisateurs',
@@ -400,6 +400,77 @@ class HmmBotAdmin {
     });
   }
 
+  // Appliquer les permissions pour les embeds (plus flexible)
+  applyEmbedPermissions() {
+    const hasEditPermission = this.hasPermission('embeds', 'edit');
+    const hasSendPermission = this.hasPermission('embeds', 'send');
+    
+    // Les inputs sont activés si on a au moins la permission send
+    const formInputs = document.querySelectorAll('input:not([type="hidden"]), textarea, select');
+    formInputs.forEach(input => {
+      if (!hasSendPermission) {
+        input.disabled = true;
+        input.title = 'Vous n\'avez pas la permission d\'utiliser cette section';
+      } else {
+        input.disabled = false;
+        input.title = '';
+      }
+    });
+    
+    // Les boutons de sauvegarde/édition nécessitent la permission edit
+    const saveButtons = document.querySelectorAll('button[type="submit"], .btn-save, .save-btn');
+    saveButtons.forEach(btn => {
+      if (!hasEditPermission) {
+        btn.disabled = true;
+        btn.title = 'Vous n\'avez pas la permission de modifier cette section';
+      }
+    });
+    
+    // Le bouton send nécessite seulement la permission send
+    const sendButton = document.getElementById('send-embed-btn');
+    if (sendButton) {
+      if (!hasSendPermission) {
+        sendButton.disabled = true;
+        sendButton.title = 'Vous n\'avez pas la permission d\'envoyer des embeds';
+      } else {
+        sendButton.disabled = false;
+        sendButton.title = '';
+      }
+    }
+    
+    // Masquer les boutons d'action d'édition
+    const editButtons = document.querySelectorAll('.btn-edit, .edit-btn');
+    editButtons.forEach(btn => {
+      if (!hasEditPermission) {
+        btn.style.display = 'none';
+      }
+    });
+  }
+
+  // Appliquer les permissions pour les logs
+  applyLogPermissions() {
+    const hasConfigPermission = this.hasPermission('logs', 'config');
+    
+    // Le bouton de configuration nécessite la permission config
+    const configButton = document.getElementById('logs-config-btn');
+    if (configButton) {
+      if (!hasConfigPermission) {
+        configButton.disabled = true;
+        configButton.title = 'Vous n\'avez pas la permission de configurer les logs';
+      } else {
+        configButton.disabled = false;
+        configButton.title = '';
+      }
+    }
+    
+    // Les boutons "Voir" restent fonctionnels pour tous ceux qui ont 'view'
+    const viewButtons = document.querySelectorAll('.view-log-btn');
+    viewButtons.forEach(btn => {
+      btn.disabled = false;
+      btn.title = '';
+    });
+  }
+
   // Obtenir le nom d'affichage du rôle
   getRoleDisplayName(role) {
     const roleNames = {
@@ -600,6 +671,12 @@ class HmmBotAdmin {
   }
 
   async showLogsConfig() {
+    // Vérifier les permissions
+    if (!this.hasPermission('logs', 'config')) {
+      this.showNotification('Vous n\'avez pas la permission de configurer les logs', 'error');
+      return;
+    }
+
     try {
       // Charger la configuration actuelle
       const res = await fetch('/api/bot/logs/config', {
@@ -687,6 +764,12 @@ class HmmBotAdmin {
   }
 
   async saveLogsConfig() {
+    // Vérifier les permissions
+    if (!this.hasPermission('logs', 'config')) {
+      this.showNotification('Vous n\'avez pas la permission de configurer les logs', 'error');
+      return;
+    }
+
     try {
       const config = {
         create_test_logs_on_startup: document.getElementById('create-test-logs-startup').checked,
@@ -828,7 +911,7 @@ class HmmBotAdmin {
         if (this.hasPermission('logs', 'view')) {
           content.innerHTML = this.renderLogs();
           this.loadLogFiles(); // Charger les fichiers de logs
-          // Pas de applyEditPermissions car les logs n'ont que 'view'
+          this.applyLogPermissions();
         } else {
           content.innerHTML = '<div class="card"><h2>Accès refusé</h2><p>Vous n\'avez pas les permissions nécessaires pour accéder à cette section.</p></div>';
         }
@@ -840,7 +923,7 @@ class HmmBotAdmin {
           if (!this.serverData.channels) {
             this.loadServerData();
           }
-          this.applyEditPermissions('embeds');
+          this.applyEmbedPermissions();
         } else {
           content.innerHTML = '<div class="card"><h2>Accès refusé</h2><p>Vous n\'avez pas les permissions nécessaires pour accéder à cette section.</p></div>';
         }

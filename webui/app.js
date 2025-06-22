@@ -14,6 +14,8 @@ class HmmBotAdmin {
     this.currentUser = null;
     this.users = [];
     this.roles = {};
+    this.customRoles = {};
+    this.allRoles = {};
     this.modules = {};
     
     // Données par défaut pour les rôles et modules
@@ -25,11 +27,81 @@ class HmmBotAdmin {
   initDefaultData() {
     // Définir les rôles par défaut
     this.roles = {
-      superadmin: { name: 'Super Admin', level: 5 },
-      admin: { name: 'Administrateur', level: 4 },
-      moderator: { name: 'Modérateur', level: 3 },
-      support: { name: 'Support', level: 2 },
-      viewer: { name: 'Lecteur', level: 1 }
+      superadmin: { 
+        name: 'Super Admin', 
+        level: 5,
+        permissions: {
+          dashboard: ['view'],
+          tickets: ['view', 'edit'],
+          moderation: ['view', 'edit'],
+          economy: ['view', 'edit'],
+          channels: ['view', 'edit'],
+          roles: ['view', 'edit'],
+          logs: ['view', 'config'],
+          embeds: ['view', 'edit', 'send'],
+          users: ['view', 'create', 'edit', 'delete', 'manage_roles']
+        }
+      },
+      admin: { 
+        name: 'Administrateur', 
+        level: 4,
+        permissions: {
+          dashboard: ['view'],
+          tickets: ['view', 'edit'],
+          moderation: ['view', 'edit'],
+          economy: ['view', 'edit'],
+          channels: ['view', 'edit'],
+          roles: ['view'],
+          logs: ['view'],
+          embeds: ['view', 'edit', 'send'],
+          users: ['view', 'edit']
+        }
+      },
+      moderator: { 
+        name: 'Modérateur', 
+        level: 3,
+        permissions: {
+          dashboard: ['view'],
+          tickets: ['view', 'edit'],
+          moderation: ['view', 'edit'],
+          economy: ['view'],
+          channels: ['view'],
+          roles: ['view'],
+          logs: ['view'],
+          embeds: ['view', 'send'],
+          users: ['view']
+        }
+      },
+      support: { 
+        name: 'Support', 
+        level: 2,
+        permissions: {
+          dashboard: ['view'],
+          tickets: ['view', 'edit'],
+          moderation: ['view'],
+          economy: ['view'],
+          channels: ['view'],
+          roles: ['view'],
+          logs: ['view'],
+          embeds: ['view'],
+          users: ['view']
+        }
+      },
+      viewer: { 
+        name: 'Lecteur', 
+        level: 1,
+        permissions: {
+          dashboard: ['view'],
+          tickets: ['view'],
+          moderation: ['view'],
+          economy: ['view'],
+          channels: ['view'],
+          roles: ['view'],
+          logs: ['view'],
+          embeds: ['view'],
+          users: ['view']
+        }
+      }
     };
 
     // Définir les modules par défaut
@@ -64,11 +136,7 @@ class HmmBotAdmin {
         icon: 'fas fa-users-cog',
         permissions: ['view', 'edit']
       },
-      config: {
-        name: 'Configuration',
-        icon: 'fas fa-cog',
-        permissions: ['view', 'edit']
-      },
+
       logs: {
         name: 'Logs',
         icon: 'fas fa-file-alt',
@@ -99,7 +167,11 @@ class HmmBotAdmin {
         await this.loadTicketStats();
         await this.loadRecentLogs();
         await this.loadServerData();
+        await this.loadUsers();
+        await this.loadRoles();
         this.showApp();
+        this.updateUserInfo();
+        this.updateNavigation();
         this.loadSection('dashboard');
         setInterval(() => {
           this.loadBotStats();
@@ -150,6 +222,10 @@ class HmmBotAdmin {
         e.preventDefault();
         await this.saveRolesConfig(e.target);
       }
+      if (e.target.id === 'general-config-form') {
+        e.preventDefault();
+        await this.saveConfig(e.target);
+      }
     });
     document.addEventListener('click', (e) => {
       if (e.target.closest('.nav-item')) {
@@ -181,7 +257,7 @@ class HmmBotAdmin {
         this.createTestLogs();
       }
       if (e.target.id === 'logs-config-btn') {
-        this.showLogsConfig();
+        this.showLogsConfigModal();
       }
       if (e.target.id === 'refresh-logs-btn') {
         this.loadLogFiles();
@@ -230,6 +306,16 @@ class HmmBotAdmin {
           document.getElementById('embed-color').value = colorValue;
         }
       }
+      // Gestionnaires pour les utilisateurs
+      if (e.target.classList.contains('show-create-user-btn')) {
+        this.showCreateUserModal();
+      }
+      if (e.target.classList.contains('show-role-manager-btn')) {
+        this.showRoleManagerModal();
+      }
+      if (e.target.classList.contains('show-create-role-btn')) {
+        this.showCreateRoleModal();
+      }
     });
     window.addEventListener('resize', () => {
       if (window.innerWidth > 768) {
@@ -277,13 +363,16 @@ class HmmBotAdmin {
         await this.loadTicketStats();
         await this.loadRecentLogs();
         await this.loadServerData();
+        await this.loadUsers();
+        await this.loadRoles();
         
         this.hideLogin();
         this.showApp();
         this.updateUserInfo();
+        this.updateNavigation();
         this.loadSection('dashboard');
         
-        this.showNotification('success', `Bienvenue, ${this.currentUser.username} !`);
+        this.showNotification(`Bienvenue, ${this.currentUser.username} !`, 'success');
       } else {
         const error = await res.json();
         errorDiv.textContent = error.error || 'Erreur de connexion';
@@ -343,6 +432,24 @@ class HmmBotAdmin {
     if (roleEl) roleEl.textContent = this.getRoleDisplayName(this.currentUser.role);
   }
 
+  // Obtenir le nom d'affichage d'un rôle
+  getRoleDisplayName(roleKey) {
+    if (!roleKey) return 'Aucun';
+    
+    // Chercher dans les rôles système
+    if (this.roles[roleKey]) {
+      return this.roles[roleKey].name;
+    }
+    
+    // Chercher dans les rôles personnalisés
+    if (this.customRoles && this.customRoles[roleKey]) {
+      return this.customRoles[roleKey].name;
+    }
+    
+    // Fallback
+    return roleKey.charAt(0).toUpperCase() + roleKey.slice(1);
+  }
+
   // Mettre à jour la navigation selon les permissions
   updateNavigation() {
     if (!this.currentUser) return;
@@ -362,11 +469,33 @@ class HmmBotAdmin {
 
   // Vérifier si l'utilisateur a une permission
   hasPermission(module, permission) {
-    if (!this.currentUser || !this.currentUser.permissions) return false;
+    if (!this.currentUser) return false;
+    
+    // Les super admins ont toutes les permissions
     if (this.currentUser.isSuperAdmin) return true;
     
-    const modulePermissions = this.currentUser.permissions[module];
-    return modulePermissions && modulePermissions.includes(permission);
+    // Vérifier d'abord les permissions personnalisées de l'utilisateur (si elles existent)
+    if (this.currentUser.permissions && this.currentUser.permissions[module]) {
+      return this.currentUser.permissions[module].includes(permission);
+    }
+    
+    // Sinon, utiliser les permissions du rôle
+    const userRole = this.currentUser.role;
+    if (!userRole) return false;
+    
+    // Vérifier dans les rôles système
+    const systemRole = this.roles[userRole];
+    if (systemRole && systemRole.permissions && systemRole.permissions[module]) {
+      return systemRole.permissions[module].includes(permission);
+    }
+    
+    // Vérifier dans les rôles personnalisés
+    const customRole = this.customRoles && this.customRoles[userRole];
+    if (customRole && customRole.permissions && customRole.permissions[module]) {
+      return customRole.permissions[module].includes(permission);
+    }
+    
+    return false;
   }
 
   // Appliquer les restrictions selon les permissions edit
@@ -606,17 +735,33 @@ class HmmBotAdmin {
       });
       
       if (res.ok) {
-        const data = await res.json();
-        this.showLogModal(filename, data.content);
+        const contentType = res.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const data = await res.json();
+          this.showLogModal(filename, data.content || data);
+        } else {
+          // Si ce n'est pas du JSON, traiter comme du texte brut
+          const textContent = await res.text();
+          if (textContent.includes('<!DOCTYPE html>') || textContent.includes('<html>')) {
+            // Si c'est une page HTML, c'est probablement une erreur de routage
+            this.showNotification('Erreur: Le serveur a renvoyé une page web au lieu du contenu du log. Vérifiez la configuration de l\'API.', 'error');
+            this.closeModal();
+            return;
+          }
+          this.showLogModal(filename, textContent);
+        }
       } else if (res.status === 401) {
         this.showNotification('Session expirée, veuillez vous reconnecter.', 'error');
         this.logout();
       } else {
-        throw new Error(`Erreur ${res.status}: ${res.statusText}`);
+        const errorText = await res.text();
+        console.error('Erreur du serveur:', errorText);
+        this.showNotification(`Erreur ${res.status}: ${res.statusText}`, 'error');
+        this.closeModal();
       }
     } catch (error) {
       console.error('Erreur lors du chargement du contenu du log:', error);
-      this.showNotification('Erreur lors du chargement du fichier de log', 'error');
+      this.showNotification('Erreur lors du chargement du fichier de log: ' + error.message, 'error');
       this.closeModal();
     }
   }
@@ -628,10 +773,22 @@ class HmmBotAdmin {
       });
       
       if (res.ok) {
-        const data = await res.json();
+        const contentType = res.headers.get('content-type');
+        let content;
+        
+        if (contentType && contentType.includes('application/json')) {
+          const data = await res.json();
+          content = data.content || data;
+        } else {
+          content = await res.text();
+          if (content.includes('<!DOCTYPE html>') || content.includes('<html>')) {
+            this.showNotification('Erreur: Le serveur a renvoyé une page web au lieu du contenu du log.', 'error');
+            return;
+          }
+        }
         
         // Créer un blob avec le contenu du fichier
-        const blob = new Blob([data.content], { type: 'text/plain' });
+        const blob = new Blob([content], { type: 'text/plain' });
         const url = window.URL.createObjectURL(blob);
         
         // Créer un lien de téléchargement
@@ -758,7 +915,7 @@ class HmmBotAdmin {
         </div>
         
         <div class="form-actions">
-          <button class="btn btn-primary" onclick="app.saveLogsConfig()">
+          <button class="btn btn-primary" onclick="app.saveBotLogsConfig()">
             <i class="fas fa-save"></i>
             Sauvegarder
           </button>
@@ -773,7 +930,7 @@ class HmmBotAdmin {
     modalOverlay.style.display = 'flex';
   }
 
-  async saveLogsConfig() {
+  async saveBotLogsConfig() {
     // Vérifier les permissions
     if (!this.hasPermission('logs', 'config')) {
       this.showNotification('Vous n\'avez pas la permission de configurer les logs', 'error');
@@ -859,7 +1016,9 @@ class HmmBotAdmin {
       economy: 'Économie',
       channels: 'Salons',
       roles: 'Rôles',
-      logs: 'Logs'
+      logs: 'Logs',
+      embeds: 'Embeds',
+      users: 'Utilisateurs'
     };
     document.getElementById('page-title').textContent = titles[section] || section;
     this.currentSection = section;
@@ -938,15 +1097,7 @@ class HmmBotAdmin {
           content.innerHTML = '<div class="card"><h2>Accès refusé</h2><p>Vous n\'avez pas les permissions nécessaires pour accéder à cette section.</p></div>';
         }
         break;
-      case 'config':
-        if (this.hasPermission('config', 'view')) {
-          content.innerHTML = this.renderConfig();
-          this.loadConfig();
-          this.applyEditPermissions('config');
-        } else {
-          content.innerHTML = '<div class="card"><h2>Accès refusé</h2><p>Vous n\'avez pas les permissions nécessaires pour accéder à cette section.</p></div>';
-        }
-        break;
+
       case 'users':
         if (this.hasPermission('users', 'view')) {
           content.innerHTML = this.renderUsers();
@@ -954,6 +1105,16 @@ class HmmBotAdmin {
           this.loadRoles();
           this.loadModules();
           // Pas de applyEditPermissions car users a sa propre logique de permissions
+        } else {
+          content.innerHTML = '<div class="card"><h2>Accès refusé</h2><p>Vous n\'avez pas les permissions nécessaires pour accéder à cette section.</p></div>';
+        }
+        break;
+      case 'roles':
+        if (this.hasPermission('roles', 'view')) {
+          content.innerHTML = this.renderRoles();
+          this.loadRoles();
+          this.loadModules();
+          // Pas de applyEditPermissions car roles a sa propre logique de permissions
         } else {
           content.innerHTML = '<div class="card"><h2>Accès refusé</h2><p>Vous n\'avez pas les permissions nécessaires pour accéder à cette section.</p></div>';
         }
@@ -2879,19 +3040,39 @@ class HmmBotAdmin {
       const res = await fetch('/api/users/roles', {
         headers: { Authorization: 'Bearer ' + this.token }
       });
+      
       if (!res.ok) {
-        const errorText = await res.text();
-        console.error('Erreur serveur:', errorText);
-        throw new Error(`Erreur ${res.status}: ${res.statusText}`);
+        console.error(`Erreur lors du chargement des rôles: ${res.status} ${res.statusText}`);
+        return; // Utiliser les rôles par défaut définis dans initDefaultData()
       }
       
-      const responseText = await res.text();
-      try {
-        this.roles = JSON.parse(responseText);
-      } catch (jsonError) {
-        console.error('Erreur de parsing JSON pour les rôles:', jsonError);
-        console.error('Réponse reçue:', responseText);
-        throw new Error('Réponse invalide du serveur');
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const rolesData = await res.json();
+          // Ne remplacer que si on reçoit des données valides
+          if (rolesData && typeof rolesData === 'object') {
+            this.roles = rolesData;
+          }
+        } catch (jsonError) {
+          console.error('Erreur de parsing JSON pour les rôles:', jsonError);
+        }
+      } else {
+        const responseText = await res.text();
+        if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html>')) {
+          console.error('Le serveur a renvoyé une page HTML au lieu des données de rôles. Vérifiez la configuration de l\'API.');
+          return; // Garder les rôles par défaut
+        }
+        
+        // Essayer de parser comme JSON malgré le content-type incorrect
+        try {
+          const rolesData = JSON.parse(responseText);
+          if (rolesData && typeof rolesData === 'object') {
+            this.roles = rolesData;
+          }
+        } catch (jsonError) {
+          console.error('Impossible de parser la réponse comme JSON:', jsonError);
+        }
       }
 
       // Charger les rôles personnalisés et les fusionner
@@ -2900,14 +3081,46 @@ class HmmBotAdmin {
           const customRes = await fetch('/api/roles/custom', {
             headers: { Authorization: 'Bearer ' + this.token }
           });
+          
           if (customRes.ok) {
-            const customRoles = await customRes.json();
-            // Fusionner les rôles personnalisés avec les rôles système
-            this.roles = { ...this.roles, ...customRoles };
+            const customContentType = customRes.headers.get('content-type');
+            if (customContentType && customContentType.includes('application/json')) {
+              const customRoles = await customRes.json();
+              this.customRoles = customRoles || {};
+              // Créer allRoles en fusionnant les rôles système et personnalisés
+              this.allRoles = { ...this.roles, ...this.customRoles };
+            } else {
+              const customText = await customRes.text();
+              if (!customText.includes('<!DOCTYPE html>') && !customText.includes('<html>')) {
+                try {
+                  const customRoles = JSON.parse(customText);
+                  this.customRoles = customRoles || {};
+                  this.allRoles = { ...this.roles, ...this.customRoles };
+                } catch (e) {
+                  console.warn('Impossible de parser les rôles personnalisés:', e);
+                  this.customRoles = {};
+                  this.allRoles = { ...this.roles };
+                }
+              } else {
+                console.warn('Le serveur a renvoyé une page HTML pour les rôles personnalisés');
+                this.customRoles = {};
+                this.allRoles = { ...this.roles };
+              }
+            }
+          } else {
+            console.warn('Impossible de charger les rôles personnalisés:', customRes.status);
+            this.customRoles = {};
+            this.allRoles = { ...this.roles };
           }
         } catch (error) {
-          console.warn('Impossible de charger les rôles personnalisés:', error);
+          console.warn('Erreur lors du chargement des rôles personnalisés:', error);
+          this.customRoles = {};
+          this.allRoles = { ...this.roles };
         }
+      } else {
+        // Si l'utilisateur n'a pas la permission manage_roles, utiliser seulement les rôles système
+        this.customRoles = {};
+        this.allRoles = { ...this.roles };
       }
 
       // Mettre à jour les filtres si la page utilisateurs est affichée
@@ -2924,7 +3137,7 @@ class HmmBotAdmin {
     if (roleFilter) {
       const currentValue = roleFilter.value;
       roleFilter.innerHTML = '<option value="">Tous les rôles</option>' +
-        Object.entries(this.roles).map(([roleKey, roleData]) => 
+        Object.entries(this.allRoles || this.roles).map(([roleKey, roleData]) => 
           `<option value="${roleKey}" ${currentValue === roleKey ? 'selected' : ''}>${roleData.name}</option>`
         ).join('');
     }
@@ -3197,7 +3410,7 @@ class HmmBotAdmin {
               <div class="form-group">
                 <label class="form-label">Rôle *</label>
                 <select name="role" class="form-select" onchange="app.handleRoleChange(this)" required>
-                  ${Object.entries(this.roles).map(([roleKey, roleData]) => `
+                  ${Object.entries(this.allRoles || this.roles).map(([roleKey, roleData]) => `
                     <option value="${roleKey}" ${userRole === roleKey ? 'selected' : ''}>
                       ${roleData.name}
                     </option>
@@ -3297,7 +3510,7 @@ class HmmBotAdmin {
     const checkboxes = permissionsGrid.querySelectorAll('input[type="checkbox"]');
     
     // Mode rôle prédéfini uniquement (plus de mode custom)
-    const roleData = this.roles[selectedRole];
+    const roleData = (this.allRoles || this.roles)[selectedRole];
     if (!roleData) return;
     
     // Afficher l'aperçu du rôle
@@ -3834,41 +4047,7 @@ class HmmBotAdmin {
     }
   }
 
-  // Créer un rôle personnalisé
-  async createCustomRole(event) {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    
-    const roleData = {
-      name: formData.get('name'),
-      color: formData.get('color'),
-      permissions: this.extractPermissionsFromForm(formData)
-    };
 
-    try {
-      const res = await fetch('/api/roles/custom', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + this.token
-        },
-        body: JSON.stringify(roleData)
-      });
-
-      if (res.ok) {
-        this.showNotification('Rôle créé avec succès !', 'success');
-        document.querySelector('.modal-overlay').remove();
-        this.loadRoleManagerData();
-        this.loadRoles(); // Recharger les rôles pour les sélecteurs
-      } else {
-        const error = await res.json();
-        this.showNotification(error.error || 'Erreur lors de la création', 'error');
-      }
-    } catch (error) {
-      console.error('Erreur lors de la création du rôle:', error);
-      this.showNotification('Erreur de connexion', 'error');
-    }
-  }
 
   // Supprimer un rôle personnalisé
   async deleteCustomRole(roleId) {
@@ -3896,89 +4075,9 @@ class HmmBotAdmin {
     }
   }
 
-  // Créer un utilisateur
-  async createUser(event) {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    
-    const selectedRole = formData.get('role');
-    const userData = {
-      username: formData.get('username'),
-      email: formData.get('email'),
-      password: formData.get('password'),
-      role: selectedRole === 'custom' ? 'viewer' : selectedRole,
-      customPermissions: selectedRole === 'custom' ? this.extractPermissionsFromForm(formData) : {}
-    };
 
-    try {
-      const res = await fetch('/api/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + this.token
-        },
-        body: JSON.stringify(userData)
-      });
 
-      if (res.ok) {
-        const newUser = await res.json();
-        this.showNotification('Utilisateur créé avec succès !', 'success');
-        document.querySelector('.modal-overlay').remove();
-        this.loadUsers();
-      } else {
-        const error = await res.json();
-        this.showNotification(error.error || 'Erreur lors de la création', 'error');
-      }
-    } catch (error) {
-      console.error('Erreur lors de la création:', error);
-      this.showNotification('Erreur de connexion', 'error');
-    }
-  }
 
-  // Mettre à jour un utilisateur
-  async updateUser(event) {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    const userId = formData.get('userId');
-    
-    const selectedRole = formData.get('role');
-    const userData = {
-      username: formData.get('username'),
-      email: formData.get('email'),
-      role: selectedRole === 'custom' ? 'viewer' : selectedRole,
-      isActive: formData.has('isActive'),
-      customPermissions: selectedRole === 'custom' ? this.extractPermissionsFromForm(formData) : {}
-    };
-
-    // Ajouter le mot de passe seulement s'il est fourni
-    const password = formData.get('password');
-    if (password && password.trim()) {
-      userData.password = password;
-    }
-
-    try {
-      const res = await fetch(`/api/users/${userId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + this.token
-        },
-        body: JSON.stringify(userData)
-      });
-
-      if (res.ok) {
-        this.showNotification('Utilisateur mis à jour avec succès !', 'success');
-        document.querySelector('.modal-overlay').remove();
-        this.loadUsers();
-      } else {
-        const error = await res.json();
-        this.showNotification(error.error || 'Erreur lors de la mise à jour', 'error');
-      }
-    } catch (error) {
-      console.error('Erreur lors de la mise à jour:', error);
-      this.showNotification('Erreur de connexion', 'error');
-    }
-  }
 
   // Extraire les permissions du formulaire
   extractPermissionsFromForm(formData) {
@@ -4108,10 +4207,10 @@ class HmmBotAdmin {
         'tickets': this.hasPermission('tickets', 'view'),
         'moderation': this.hasPermission('moderation', 'view'),
         'economy': this.hasPermission('economy', 'view'),
-        'channels': this.hasPermission('config', 'view'),
-        'roles': this.hasPermission('config', 'view'),
+        'channels': this.hasPermission('channels', 'view'),
+        'roles': this.hasPermission('roles', 'view'),
         'logs': this.hasPermission('logs', 'view'),
-        'embeds': this.hasPermission('embeds', 'create'),
+        'embeds': this.hasPermission('embeds', 'view'),
         'users': this.hasPermission('users', 'view')
       };
 
@@ -4128,6 +4227,734 @@ class HmmBotAdmin {
         }
       }
     });
+  }
+
+  // Afficher la modal de configuration des logs
+  showLogsConfigModal() {
+    if (!this.hasPermission('logs', 'config')) {
+      this.showNotification('Vous n\'avez pas la permission de configurer les logs', 'error');
+      return;
+    }
+
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay active';
+    modalOverlay.innerHTML = `
+      <div class="modal modal-medium">
+        <div class="modal-header">
+          <h3>
+            <i class="fas fa-cog"></i>
+            Configuration des Logs
+          </h3>
+          <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-content">
+          <form id="logs-config-form" onsubmit="app.saveLogsConfig(event)">
+            <div class="form-group">
+              <label class="form-label">Niveau de logging</label>
+              <select name="logLevel" class="form-input">
+                <option value="debug">Debug (Très détaillé)</option>
+                <option value="info" selected>Info (Normal)</option>
+                <option value="warn">Warning (Avertissements uniquement)</option>
+                <option value="error">Error (Erreurs uniquement)</option>
+              </select>
+              <small class="form-help">Définit le niveau de détail des logs</small>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Rotation des logs</label>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" name="autoRotate" checked>
+                  <span class="checkbox-custom"></span>
+                  Rotation automatique des fichiers
+                </label>
+              </div>
+              <small class="form-help">Crée un nouveau fichier de log chaque jour</small>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Taille maximale des logs (MB)</label>
+              <input type="number" name="maxLogSize" class="form-input" value="10" min="1" max="100">
+              <small class="form-help">Taille maximale d'un fichier de log avant rotation</small>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Nombre de fichiers à conserver</label>
+              <input type="number" name="maxLogFiles" class="form-input" value="7" min="1" max="30">
+              <small class="form-help">Nombre de fichiers de log à garder en archive</small>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Logs à conserver</label>
+              <div class="checkbox-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" name="logCommands" checked>
+                  <span class="checkbox-custom"></span>
+                  Commandes utilisateur
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="logErrors" checked>
+                  <span class="checkbox-custom"></span>
+                  Erreurs système
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="logModerationActions" checked>
+                  <span class="checkbox-custom"></span>
+                  Actions de modération
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="logJoinLeave">
+                  <span class="checkbox-custom"></span>
+                  Arrivées/Départs de membres
+                </label>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i>
+                Sauvegarder
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">
+                <i class="fas fa-times"></i>
+                Annuler
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modalOverlay);
+  }
+
+  // Sauvegarder la configuration des logs
+  async saveLogsConfig(event) {
+    if (event) {
+      event.preventDefault();
+    }
+    
+    if (!this.hasPermission('logs', 'config')) {
+      this.showNotification('Vous n\'avez pas la permission de configurer les logs', 'error');
+      return;
+    }
+
+    if (!event || !event.target) {
+      this.showNotification('Erreur: formulaire non trouvé', 'error');
+      return;
+    }
+    
+    const formData = new FormData(event.target);
+    const configData = {
+      logLevel: formData.get('logLevel'),
+      autoRotate: formData.has('autoRotate'),
+      maxLogSize: parseInt(formData.get('maxLogSize')),
+      maxLogFiles: parseInt(formData.get('maxLogFiles')),
+      logCommands: formData.has('logCommands'),
+      logErrors: formData.has('logErrors'),
+      logModerationActions: formData.has('logModerationActions'),
+      logJoinLeave: formData.has('logJoinLeave')
+    };
+
+    try {
+      const res = await fetch('/api/logs/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + this.token
+        },
+        body: JSON.stringify(configData)
+      });
+
+      if (res.ok) {
+        this.showNotification('Configuration des logs sauvegardée avec succès !', 'success');
+        document.querySelector('.modal-overlay').remove();
+      } else {
+        const error = await res.json();
+        this.showNotification(error.error || 'Erreur lors de la sauvegarde', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde de la configuration des logs:', error);
+      this.showNotification('Erreur de connexion', 'error');
+    }
+  }
+
+  // Afficher une notification
+  showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+      <div class="notification-content">
+        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-triangle' : 'info-circle'}"></i>
+        <span>${message}</span>
+      </div>
+      <button class="notification-close">
+        <i class="fas fa-times"></i>
+      </button>
+    `;
+    
+    // Ajouter au conteneur de notifications (ou créer s'il n'existe pas)
+    let notificationContainer = document.getElementById('notification-container');
+    if (!notificationContainer) {
+      notificationContainer = document.createElement('div');
+      notificationContainer.id = 'notification-container';
+      notificationContainer.className = 'notification-container';
+      document.body.appendChild(notificationContainer);
+    }
+    
+    notificationContainer.appendChild(notification);
+    
+    // Auto-suppression après 5 secondes
+    setTimeout(() => {
+      if (notification.parentElement) {
+        notification.remove();
+      }
+    }, 5000);
+  }
+
+  // ===== MÉTHODES MANQUANTES POUR LA GESTION DES UTILISATEURS ET RÔLES =====
+
+  // Charger la liste des utilisateurs
+  async loadUsers() {
+    try {
+      const res = await fetch('/api/users', {
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+      
+      if (res.ok) {
+        const contentType = res.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          this.users = await res.json();
+        } else {
+          const responseText = await res.text();
+          if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html>')) {
+            console.error('Le serveur a renvoyé une page HTML au lieu des données utilisateurs. Vérifiez la configuration de l\'API.');
+            this.showNotification('Erreur: Configuration API incorrecte pour les utilisateurs', 'error');
+            return;
+          }
+          // Essayer de parser comme JSON
+          try {
+            this.users = JSON.parse(responseText);
+          } catch (e) {
+            console.error('Impossible de parser la réponse utilisateurs:', e);
+            this.users = [];
+          }
+        }
+        this.renderUsersTable();
+        this.updateUsersFilterOptions();
+      } else if (res.status === 401) {
+        this.logout();
+      } else {
+        console.error(`Erreur lors du chargement des utilisateurs: ${res.status} ${res.statusText}`);
+        this.showNotification(`Erreur ${res.status}: ${res.statusText}`, 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des utilisateurs:', error);
+      this.showNotification('Erreur lors du chargement des utilisateurs: ' + error.message, 'error');
+    }
+  }
+
+
+
+  // Charger les modules disponibles
+  async loadModules() {
+    // Les modules sont déjà définis dans initDefaultData()
+    // Cette méthode peut être utilisée pour charger des modules dynamiques si nécessaire
+    return Promise.resolve();
+  }
+
+  // Mettre à jour les options de filtre des utilisateurs
+  updateUsersFilterOptions() {
+    const roleFilter = document.getElementById('role-filter');
+    if (roleFilter) {
+      const currentValue = roleFilter.value;
+      roleFilter.innerHTML = '<option value="">Tous les rôles</option>' +
+        Object.entries(this.allRoles || this.roles).map(([roleKey, roleData]) => 
+          `<option value="${roleKey}" ${currentValue === roleKey ? 'selected' : ''}>${roleData.name}</option>`
+        ).join('');
+    }
+  }
+
+  // Rendre la section Utilisateurs
+  renderUsers() {
+    return `
+      <div class="section-header">
+        <div>
+          <h1>
+            <i class="fas fa-users"></i>
+            Gestion des Utilisateurs
+          </h1>
+          <p>Gérez les utilisateurs et leurs permissions d'accès au panel d'administration.</p>
+        </div>
+        <div class="section-actions">
+          ${this.hasPermission('users', 'create') ? `
+            <button class="btn btn-primary" onclick="app.showCreateUserModal()">
+              <i class="fas fa-plus"></i>
+              Nouvel Utilisateur
+            </button>
+          ` : ''}
+          ${this.hasPermission('users', 'manage_roles') ? `
+            <button class="btn btn-secondary" onclick="app.showRoleManagerModal()">
+              <i class="fas fa-users-cog"></i>
+              Gérer les Rôles
+            </button>
+          ` : ''}
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i class="fas fa-users"></i>
+          </div>
+          <div class="stat-value" id="total-users">0</div>
+          <div class="stat-label">Total Utilisateurs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i class="fas fa-user-check"></i>
+          </div>
+          <div class="stat-value" id="active-users">0</div>
+          <div class="stat-label">Utilisateurs Actifs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i class="fas fa-clock"></i>
+          </div>
+          <div class="stat-value" id="active-sessions">0</div>
+          <div class="stat-label">Sessions Actives</div>
+        </div>
+      </div>
+
+      <div class="filters-bar">
+        <div class="filter-group">
+          <label class="filter-label">Filtrer par rôle</label>
+          <select class="filter-select" id="role-filter" onchange="app.filterUsers()">
+            <option value="">Tous les rôles</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Filtrer par statut</label>
+          <select class="filter-select" id="status-filter" onchange="app.filterUsers()">
+            <option value="">Tous les statuts</option>
+            <option value="active">Actif</option>
+            <option value="inactive">Inactif</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="users-table" id="users-table-container">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Utilisateur</th>
+              <th>Rôle</th>
+              <th>Statut</th>
+              <th>Dernière connexion</th>
+              <th>Créé le</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="users-table-body">
+            <tr>
+              <td colspan="6" class="text-center">Chargement...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // Rendre la section Rôles
+  renderRoles() {
+    return `
+      <div class="section-header">
+        <div>
+          <h1>
+            <i class="fas fa-users-cog"></i>
+            Gestion des Rôles
+          </h1>
+          <p>Configurez les rôles et permissions d'accès au panel d'administration.</p>
+        </div>
+        <div class="section-actions">
+          ${this.hasPermission('users', 'manage_roles') ? `
+            <button class="btn btn-primary" onclick="app.showCreateRoleModal()">
+              <i class="fas fa-plus"></i>
+              Nouveau Rôle
+            </button>
+          ` : ''}
+        </div>
+      </div>
+
+      <div class="roles-section">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">
+              <i class="fas fa-cog"></i>
+              Rôles Système
+            </h3>
+            <small class="card-subtitle">Rôles prédéfinis avec permissions fixes</small>
+          </div>
+          <div class="card-content">
+            <div class="roles-grid" id="system-roles-grid">
+              ${Object.entries(this.roles).map(([roleKey, roleData]) => 
+                this.renderRoleCard(roleKey, roleData, true)
+              ).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">
+              <i class="fas fa-user-cog"></i>
+              Rôles Personnalisés
+            </h3>
+            <small class="card-subtitle">Rôles créés avec permissions configurables</small>
+          </div>
+          <div class="card-content">
+            <div class="roles-grid" id="custom-roles-grid">
+              ${this.customRoles && Object.keys(this.customRoles).length > 0 ? 
+                Object.entries(this.customRoles).map(([roleKey, roleData]) => 
+                  this.renderRoleCard(roleKey, roleData, false)
+                ).join('') : 
+                '<div class="no-roles">Aucun rôle personnalisé créé</div>'
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Créer un nouvel utilisateur
+  async createUser(event) {
+    event.preventDefault();
+    
+    if (!this.hasPermission('users', 'create')) {
+      this.showNotification('Vous n\'avez pas la permission de créer des utilisateurs', 'error');
+      return;
+    }
+
+    const formData = new FormData(event.target);
+    const userData = {
+      username: formData.get('username'),
+      email: formData.get('email'),
+      password: formData.get('password'),
+      role: formData.get('role'),
+      isActive: true
+    };
+
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + this.token
+        },
+        body: JSON.stringify(userData)
+      });
+
+      if (res.ok) {
+        this.showNotification('Utilisateur créé avec succès !', 'success');
+        document.querySelector('.modal-overlay').remove();
+        await this.loadUsers();
+      } else {
+        const error = await res.json();
+        this.showNotification(error.error || 'Erreur lors de la création', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la création de l\'utilisateur:', error);
+      this.showNotification('Erreur de connexion', 'error');
+    }
+  }
+
+  // Mettre à jour un utilisateur
+  async updateUser(event) {
+    event.preventDefault();
+    
+    if (!this.hasPermission('users', 'edit')) {
+      this.showNotification('Vous n\'avez pas la permission de modifier des utilisateurs', 'error');
+      return;
+    }
+
+    const formData = new FormData(event.target);
+    const userId = formData.get('userId');
+    const userData = {
+      username: formData.get('username'),
+      email: formData.get('email'),
+      role: formData.get('role'),
+      isActive: formData.has('isActive')
+    };
+
+    // Ajouter le mot de passe seulement s'il est fourni
+    const password = formData.get('password');
+    if (password && password.trim() !== '') {
+      userData.password = password;
+    }
+
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + this.token
+        },
+        body: JSON.stringify(userData)
+      });
+
+      if (res.ok) {
+        this.showNotification('Utilisateur mis à jour avec succès !', 'success');
+        document.querySelector('.modal-overlay').remove();
+        await this.loadUsers();
+      } else {
+        const error = await res.json();
+        this.showNotification(error.error || 'Erreur lors de la mise à jour', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de l\'utilisateur:', error);
+      this.showNotification('Erreur de connexion', 'error');
+    }
+  }
+
+  // Supprimer un utilisateur
+  async deleteUser(userId) {
+    if (!this.hasPermission('users', 'delete')) {
+      this.showNotification('Vous n\'avez pas la permission de supprimer des utilisateurs', 'error');
+      return;
+    }
+
+    if (userId === this.currentUser.id) {
+      this.showNotification('Vous ne pouvez pas supprimer votre propre compte', 'error');
+      return;
+    }
+
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+
+      if (res.ok) {
+        this.showNotification('Utilisateur supprimé avec succès !', 'success');
+        await this.loadUsers();
+      } else {
+        const error = await res.json();
+        this.showNotification(error.error || 'Erreur lors de la suppression', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la suppression de l\'utilisateur:', error);
+      this.showNotification('Erreur de connexion', 'error');
+    }
+  }
+
+  // Afficher la modal de création de rôle personnalisé
+  showCreateRoleModal(roleId = null, roleData = null) {
+    const isEdit = roleId && roleData;
+    const title = isEdit ? 'Modifier le rôle' : 'Nouveau rôle personnalisé';
+    
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay active';
+    modalOverlay.innerHTML = `
+      <div class="modal modal-large">
+        <div class="modal-header">
+          <h3>${title}</h3>
+          <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-content">
+          <form class="role-form" onsubmit="app.${isEdit ? 'updateCustomRole' : 'createCustomRole'}(event)">
+            ${isEdit ? `<input type="hidden" name="roleId" value="${roleId}">` : ''}
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Nom du rôle *</label>
+                <input type="text" name="name" class="form-input" required 
+                       value="${roleData?.name || ''}" placeholder="Nom du rôle">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Couleur (optionnel)</label>
+                <input type="color" name="color" class="form-input" 
+                       value="${roleData?.color || '#747d8c'}">
+              </div>
+            </div>
+
+            <div class="permissions-section">
+              <h3>Permissions</h3>
+              <p class="permissions-help">Sélectionnez les permissions que ce rôle doit avoir.</p>
+              
+              <div class="permissions-grid">
+                ${Object.entries(this.modules).map(([moduleKey, moduleData]) => `
+                  <div class="permission-module">
+                    <div class="permission-module-header">
+                      <i class="${moduleData.icon}"></i>
+                      <h4>${moduleData.name}</h4>
+                    </div>
+                    <div class="permission-checkboxes">
+                      ${moduleData.permissions.map(permission => {
+                        const isChecked = roleData?.permissions?.[moduleKey]?.includes(permission) || false;
+                        return `
+                          <div class="permission-checkbox">
+                            <input type="checkbox" 
+                                   name="permissions[${moduleKey}][]" 
+                                   value="${permission}"
+                                   id="perm-${moduleKey}-${permission}"
+                                   ${isChecked ? 'checked' : ''}>
+                            <label for="perm-${moduleKey}-${permission}">${this.formatPermissionName(permission)}</label>
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i>
+                ${isEdit ? 'Mettre à jour' : 'Créer'}
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">
+                <i class="fas fa-times"></i>
+                Annuler
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modalOverlay);
+  }
+
+  // Créer un rôle personnalisé
+  async createCustomRole(event) {
+    event.preventDefault();
+    
+    if (!this.hasPermission('users', 'manage_roles')) {
+      this.showNotification('Vous n\'avez pas la permission de créer des rôles', 'error');
+      return;
+    }
+
+    const formData = new FormData(event.target);
+    const roleData = {
+      name: formData.get('name'),
+      color: formData.get('color'),
+      permissions: this.extractPermissionsFromForm(formData)
+    };
+
+    try {
+      const res = await fetch('/api/roles/custom', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + this.token
+        },
+        body: JSON.stringify(roleData)
+      });
+
+      if (res.ok) {
+        this.showNotification('Rôle créé avec succès !', 'success');
+        document.querySelector('.modal-overlay').remove();
+        await this.loadRoles();
+        this.loadSection('roles'); // Recharger la section
+      } else {
+        const error = await res.json();
+        this.showNotification(error.error || 'Erreur lors de la création', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la création du rôle:', error);
+      this.showNotification('Erreur de connexion', 'error');
+    }
+  }
+
+  // Supprimer un rôle personnalisé
+  async deleteCustomRole(roleId) {
+    if (!this.hasPermission('users', 'manage_roles')) {
+      this.showNotification('Vous n\'avez pas la permission de supprimer des rôles', 'error');
+      return;
+    }
+
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce rôle ? Les utilisateurs avec ce rôle seront convertis en "viewer".')) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/roles/custom/${roleId}`, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+
+      if (res.ok) {
+        this.showNotification('Rôle supprimé avec succès !', 'success');
+        await this.loadRoles();
+        this.loadSection('roles'); // Recharger la section
+      } else {
+        const error = await res.json();
+        this.showNotification(error.error || 'Erreur lors de la suppression', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la suppression du rôle:', error);
+      this.showNotification('Erreur de connexion', 'error');
+    }
+  }
+
+  // Sauvegarder la configuration générale
+  async saveConfig(event) {
+    if (event) {
+      event.preventDefault();
+    }
+    
+    if (!this.hasPermission('config', 'edit')) {
+      this.showNotification('Vous n\'avez pas la permission de modifier la configuration', 'error');
+      return;
+    }
+
+    let configData;
+    
+    if (event && event.target) {
+      // Mode formulaire : lire les données du formulaire
+      const formData = new FormData(event.target);
+      configData = {
+        prefix: formData.get('prefix'),
+        language: formData.get('language'),
+        debug_mode: formData.has('debug_mode'),
+        auto_backup: formData.has('auto_backup')
+      };
+    } else {
+      // Mode direct : utiliser la configuration actuelle
+      configData = this.config;
+    }
+
+    try {
+      const res = await fetch('/api/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + this.token
+        },
+        body: JSON.stringify(configData)
+      });
+
+      if (res.ok) {
+        this.showNotification('Configuration sauvegardée avec succès !', 'success');
+        await this.loadConfig();
+      } else {
+        const error = await res.json();
+        this.showNotification(error.error || 'Erreur lors de la sauvegarde', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde de la configuration:', error);
+      this.showNotification('Erreur de connexion', 'error');
+    }
   }
 
 }

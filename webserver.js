@@ -7,6 +7,7 @@ import bodyParser from 'body-parser';
 import { fileURLToPath } from 'url';
 import { Logger } from './src/utils/logger.js';
 import { UserManager } from './src/utils/userManager.js';
+import { LogCleaner } from './src/utils/logCleaner.js';
 import dotenv from 'dotenv';
 
 // Charger les variables d'environnement
@@ -566,6 +567,97 @@ app.get('/api/bot/logs/files/:filename', (req, res) => {
     }
   } catch (error) {
     res.status(500).json({ error: 'Impossible de lire le fichier de log' });
+  }
+});
+
+// Configuration des logs - GET
+app.get('/api/logs/config', checkPermission('logs', 'view'), (req, res) => {
+  try {
+    // Retourner la configuration des logs depuis config.json
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+    const logConfig = config.logs || {
+      level: 'info',
+      maxFiles: 10,
+      maxSize: '10m',
+      format: 'combined',
+      enabled: true
+    };
+    res.json(logConfig);
+  } catch (error) {
+    console.error('Erreur lors de la récupération de la config logs:', error);
+    res.status(500).json({ error: 'Impossible de récupérer la configuration des logs' });
+  }
+});
+
+// Configuration des logs - POST
+app.post('/api/logs/config', checkPermission('logs', 'config'), (req, res) => {
+  try {
+    // Charger la configuration actuelle
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+    
+    // Mettre à jour la section logs
+    config.logs = {
+      ...config.logs,
+      ...req.body
+    };
+    
+    // Sauvegarder la configuration
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+    
+    res.json({ success: true, message: 'Configuration des logs sauvegardée' });
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde de la config logs:', error);
+    res.status(500).json({ error: 'Impossible de sauvegarder la configuration des logs' });
+  }
+});
+
+// Statistiques des logs
+app.get('/api/logs/stats', checkPermission('logs', 'view'), (req, res) => {
+  try {
+    const stats = LogCleaner.getLogStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des stats logs:', error);
+    res.status(500).json({ error: 'Impossible de récupérer les statistiques des logs' });
+  }
+});
+
+// Nettoyer tous les fichiers de logs
+app.post('/api/logs/clean', checkPermission('logs', 'config'), (req, res) => {
+  try {
+    const result = LogCleaner.cleanAllLogFiles();
+    res.json({
+      success: result.success || true,
+      message: `${result.cleaned} logs de test supprimés sur ${result.total} fichiers traités`,
+      cleaned: result.cleaned,
+      total: result.total
+    });
+  } catch (error) {
+    console.error('Erreur lors du nettoyage des logs:', error);
+    res.status(500).json({ error: 'Impossible de nettoyer les logs' });
+  }
+});
+
+// Nettoyer un fichier de log spécifique
+app.post('/api/logs/clean/:filename', checkPermission('logs', 'config'), (req, res) => {
+  try {
+    const { filename } = req.params;
+    const result = LogCleaner.cleanSpecificFile(filename);
+    
+    if (result.error) {
+      return res.status(500).json({ error: result.error });
+    }
+    
+    res.json({
+      success: true,
+      message: `${result.linesCleaned} lignes supprimées du fichier ${filename}`,
+      linesCleaned: result.linesCleaned,
+      totalLines: result.totalLines,
+      finalLines: result.finalLines
+    });
+  } catch (error) {
+    console.error('Erreur lors du nettoyage du fichier:', error);
+    res.status(500).json({ error: 'Impossible de nettoyer le fichier de log' });
   }
 });
 

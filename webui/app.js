@@ -382,9 +382,14 @@ class HmmBotAdmin {
       }
     });
     
-    // Désactiver tous les inputs si pas de permission edit
+    // Désactiver tous les inputs si pas de permission edit (sauf les inputs de connexion)
     const formInputs = document.querySelectorAll('input:not([type="hidden"]), textarea, select');
     formInputs.forEach(input => {
+      // Ne jamais désactiver les inputs de connexion
+      if (input.id === 'username' || input.id === 'password' || input.closest('#login-form')) {
+        return;
+      }
+      
       if (!hasEditPermission) {
         input.disabled = true;
         input.title = 'Vous n\'avez pas la permission de modifier cette section';
@@ -405,9 +410,14 @@ class HmmBotAdmin {
     const hasEditPermission = this.hasPermission('embeds', 'edit');
     const hasSendPermission = this.hasPermission('embeds', 'send');
     
-    // Les inputs sont activés si on a au moins la permission send
+    // Les inputs sont activés si on a au moins la permission send (sauf les inputs de connexion)
     const formInputs = document.querySelectorAll('input:not([type="hidden"]), textarea, select');
     formInputs.forEach(input => {
+      // Ne jamais désactiver les inputs de connexion
+      if (input.id === 'username' || input.id === 'password' || input.closest('#login-form')) {
+        return;
+      }
+      
       if (!hasSendPermission) {
         input.disabled = true;
         input.title = 'Vous n\'avez pas la permission d\'utiliser cette section';
@@ -2892,6 +2902,7 @@ class HmmBotAdmin {
           });
           if (customRes.ok) {
             const customRoles = await customRes.json();
+            // Fusionner les rôles personnalisés avec les rôles système
             this.roles = { ...this.roles, ...customRoles };
           }
         } catch (error) {
@@ -3148,7 +3159,6 @@ class HmmBotAdmin {
     const isEdit = !!user;
     const title = isEdit ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur';
     const userRole = user?.role || 'viewer';
-    const hasCustomPermissions = user?.customPermissions && Object.keys(user.customPermissions).length > 0;
 
     const modalOverlay = document.createElement('div');
     modalOverlay.className = 'modal-overlay active';
@@ -3185,18 +3195,15 @@ class HmmBotAdmin {
                 ${isEdit ? '<small class="form-help">Laissez vide pour conserver le mot de passe actuel</small>' : ''}
               </div>
               <div class="form-group">
-                <label class="form-label">Rôle et Permissions</label>
-                <select name="role" class="form-select" onchange="app.handleRoleChange(this)">
+                <label class="form-label">Rôle *</label>
+                <select name="role" class="form-select" onchange="app.handleRoleChange(this)" required>
                   ${Object.entries(this.roles).map(([roleKey, roleData]) => `
-                    <option value="${roleKey}" ${(hasCustomPermissions ? false : userRole === roleKey) ? 'selected' : ''}>
+                    <option value="${roleKey}" ${userRole === roleKey ? 'selected' : ''}>
                       ${roleData.name}
                     </option>
                   `).join('')}
-                  <option value="custom" ${hasCustomPermissions ? 'selected' : ''}>
-                    Permissions personnalisées
-                  </option>
                 </select>
-                <small class="form-help">Sélectionnez un rôle prédéfini ou "Permissions personnalisées" pour une configuration manuelle</small>
+                <small class="form-help">Sélectionnez un rôle prédéfini. Pour des permissions personnalisées, créez un nouveau rôle.</small>
               </div>
             </div>
 
@@ -3228,9 +3235,7 @@ class HmmBotAdmin {
                     </div>
                     <div class="permission-checkboxes">
                       ${moduleData.permissions.map(permission => {
-                        const isChecked = hasCustomPermissions ? 
-                          user.customPermissions?.[moduleKey]?.includes(permission) : 
-                          user?.permissions?.[moduleKey]?.includes(permission);
+                        const isChecked = user?.permissions?.[moduleKey]?.includes(permission) || false;
                         return `
                           <div class="permission-checkbox">
                             <input type="checkbox" 
@@ -3291,83 +3296,45 @@ class HmmBotAdmin {
     
     const checkboxes = permissionsGrid.querySelectorAll('input[type="checkbox"]');
     
-    if (selectedRole === 'custom') {
-      // Mode permissions personnalisées
-      if (rolePreview) rolePreview.style.display = 'none';
-      checkboxes.forEach(checkbox => {
-        checkbox.disabled = false;
-        // Appliquer la logique view
-        this.updatePermissionLogic(checkbox);
-      });
-    } else {
-      // Mode rôle prédéfini
-      const roleData = this.roles[selectedRole];
-      if (!roleData) return;
-      
-      // Afficher l'aperçu du rôle
-      if (rolePreview && rolePreviewContent) {
-        rolePreview.style.display = 'block';
-        rolePreviewContent.innerHTML = this.renderRolePreview(roleData);
-      }
-      
-      // Désactiver toutes les checkboxes et appliquer les permissions du rôle
-      checkboxes.forEach(checkbox => {
-        checkbox.disabled = true;
-        const module = checkbox.dataset.module;
-        const permission = checkbox.dataset.permission;
-        
-        if (updatePermissions) {
-          const hasPermission = roleData.permissions?.[module]?.includes(permission) || false;
-          checkbox.checked = hasPermission;
-        }
-      });
+    // Mode rôle prédéfini uniquement (plus de mode custom)
+    const roleData = this.roles[selectedRole];
+    if (!roleData) return;
+    
+    // Afficher l'aperçu du rôle
+    if (rolePreview && rolePreviewContent) {
+      rolePreview.style.display = 'block';
+      rolePreviewContent.innerHTML = this.renderRolePreview(roleData);
     }
+    
+    // Désactiver toutes les checkboxes et appliquer les permissions du rôle
+    checkboxes.forEach(checkbox => {
+      checkbox.disabled = true;
+      const module = checkbox.dataset.module;
+      const permission = checkbox.dataset.permission;
+      
+      if (updatePermissions) {
+        const hasPermission = roleData.permissions?.[module]?.includes(permission) || false;
+        checkbox.checked = hasPermission;
+      }
+    });
   }
 
 
 
 
 
-  // Mettre à jour la logique des permissions
+  // Mettre à jour la logique des permissions (désactivée car plus de permissions personnalisées)
   updatePermissionLogic(changedCheckbox) {
-    // Ne pas traiter si la checkbox est désactivée (mode prévisualisation)
-    if (changedCheckbox.disabled) return;
-    
-    const module = changedCheckbox.dataset.module;
-    const permission = changedCheckbox.dataset.permission;
-    
-    // Si on décoche 'view', décocher toutes les autres permissions du module
-    if (permission === 'view' && !changedCheckbox.checked) {
-      const moduleCheckboxes = document.querySelectorAll(`input[data-module="${module}"]:not([data-permission="view"])`);
-      moduleCheckboxes.forEach(cb => {
-        if (!cb.disabled) {
-          cb.checked = false;
-          cb.disabled = true;
-        }
-      });
-    }
-    // Si on coche 'view', réactiver les autres permissions du module
-    else if (permission === 'view' && changedCheckbox.checked) {
-      const moduleCheckboxes = document.querySelectorAll(`input[data-module="${module}"]:not([data-permission="view"])`);
-      moduleCheckboxes.forEach(cb => {
-        if (cb.hasAttribute('data-originally-disabled')) return;
-        cb.disabled = false;
-      });
-    }
-    // Si on essaie de cocher une autre permission sans 'view', cocher automatiquement 'view'
-    else if (permission !== 'view' && changedCheckbox.checked) {
-      const viewCheckbox = document.querySelector(`input[data-module="${module}"][data-permission="view"]`);
-      if (viewCheckbox && !viewCheckbox.checked && !viewCheckbox.disabled) {
-        viewCheckbox.checked = true;
-        // Réactiver toutes les permissions du module
-        this.updatePermissionLogic(viewCheckbox);
-      }
-    }
+    // Les permissions sont maintenant gérées uniquement par les rôles prédéfinis
+    // Cette fonction est conservée pour la compatibilité mais ne fait plus rien
+    return;
   }
 
-  // Gérer le changement de permission individuelle
+  // Gérer le changement de permission individuelle (désactivé car plus de permissions personnalisées)
   handlePermissionChange(checkbox) {
-    this.updatePermissionLogic(checkbox);
+    // Les permissions sont maintenant gérées uniquement par les rôles prédéfinis
+    // Cette fonction est conservée pour la compatibilité mais ne fait plus rien
+    return;
   }
 
   // Rendre l'aperçu d'un rôle

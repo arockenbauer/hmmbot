@@ -1214,9 +1214,9 @@ export async function startWebServer() {
       console.log(`[WEB] ✅ Interface web démarrée sur http://localhost:${PORT}`);
       
       // Créer des logs de test au démarrage pour avoir du contenu
-      setTimeout(() => {
-        Logger.createTestLogs();
-      }, 2000);
+      //setTimeout(() => {
+        //Logger.createTestLogs();
+      //}, 2000);
     });
     
   } catch (error) {

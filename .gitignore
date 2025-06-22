@@ -8,3 +8,5 @@ node_modules/
 src/data/
 
 .env
+.git/
+.npm

@@ -3136,10 +3136,43 @@ class HmmBotAdmin {
     const roleFilter = document.getElementById('role-filter');
     if (roleFilter) {
       const currentValue = roleFilter.value;
-      roleFilter.innerHTML = '<option value="">Tous les rôles</option>' +
-        Object.entries(this.allRoles || this.roles).map(([roleKey, roleData]) => 
+      
+      // Séparer les rôles système des rôles personnalisés pour l'affichage
+      const systemRoles = {};
+      const customRoles = {};
+      
+      // Rôles système par défaut
+      const defaultSystemRoles = ['superadmin', 'admin', 'moderator', 'support', 'viewer'];
+      defaultSystemRoles.forEach(roleKey => {
+        if (this.roles[roleKey]) {
+          systemRoles[roleKey] = this.roles[roleKey];
+        }
+      });
+      
+      // Rôles personnalisés
+      Object.assign(customRoles, this.customRoles || {});
+      
+      let optionsHTML = '<option value="">Tous les rôles</option>';
+      
+      // Ajouter les rôles système
+      if (Object.keys(systemRoles).length > 0) {
+        optionsHTML += '<optgroup label="Rôles Système">';
+        optionsHTML += Object.entries(systemRoles).map(([roleKey, roleData]) => 
           `<option value="${roleKey}" ${currentValue === roleKey ? 'selected' : ''}>${roleData.name}</option>`
         ).join('');
+        optionsHTML += '</optgroup>';
+      }
+      
+      // Ajouter les rôles personnalisés
+      if (Object.keys(customRoles).length > 0) {
+        optionsHTML += '<optgroup label="Rôles Personnalisés">';
+        optionsHTML += Object.entries(customRoles).map(([roleKey, roleData]) => 
+          `<option value="${roleKey}" ${currentValue === roleKey ? 'selected' : ''}>${roleData.name}</option>`
+        ).join('');
+        optionsHTML += '</optgroup>';
+      }
+      
+      roleFilter.innerHTML = optionsHTML;
     }
   }
 
@@ -4569,6 +4602,21 @@ class HmmBotAdmin {
 
   // Rendre la section Rôles
   renderRoles() {
+    // Séparer les rôles système des rôles personnalisés
+    const systemRoles = {};
+    const customRoles = {};
+    
+    // Initialiser les rôles système avec ceux définis dans initDefaultData
+    const defaultSystemRoles = ['superadmin', 'admin', 'moderator', 'support', 'viewer'];
+    defaultSystemRoles.forEach(roleKey => {
+      if (this.roles[roleKey]) {
+        systemRoles[roleKey] = this.roles[roleKey];
+      }
+    });
+    
+    // Les rôles personnalisés sont dans this.customRoles
+    Object.assign(customRoles, this.customRoles || {});
+    
     return `
       <div class="section-header">
         <div>
@@ -4599,7 +4647,7 @@ class HmmBotAdmin {
           </div>
           <div class="card-content">
             <div class="roles-grid" id="system-roles-grid">
-              ${Object.entries(this.roles).map(([roleKey, roleData]) => 
+              ${Object.entries(systemRoles).map(([roleKey, roleData]) => 
                 this.renderRoleCard(roleKey, roleData, true)
               ).join('')}
             </div>
@@ -4616,13 +4664,60 @@ class HmmBotAdmin {
           </div>
           <div class="card-content">
             <div class="roles-grid" id="custom-roles-grid">
-              ${this.customRoles && Object.keys(this.customRoles).length > 0 ? 
-                Object.entries(this.customRoles).map(([roleKey, roleData]) => 
+              ${Object.keys(customRoles).length > 0 ? 
+                Object.entries(customRoles).map(([roleKey, roleData]) => 
                   this.renderRoleCard(roleKey, roleData, false)
                 ).join('') : 
                 '<div class="no-roles">Aucun rôle personnalisé créé</div>'
               }
             </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Rendre une carte de rôle
+  renderRoleCard(roleKey, roleData, isSystemRole) {
+    const permissionCount = roleData.permissions ? 
+      Object.values(roleData.permissions).flat().length : 0;
+    
+    return `
+      <div class="role-card ${isSystemRole ? 'system-role' : 'custom-role'}">
+        <div class="role-header">
+          <div class="role-info">
+            <h4 class="role-name">${roleData.name}</h4>
+            <span class="role-type">${isSystemRole ? 'Système' : 'Personnalisé'}</span>
+          </div>
+          <div class="role-actions">
+            ${!isSystemRole && this.hasPermission('users', 'manage_roles') ? `
+              <button class="btn btn-sm btn-secondary" onclick="app.showCreateRoleModal('${roleKey}', ${JSON.stringify(roleData).replace(/"/g, '&quot;')})">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button class="btn btn-sm btn-danger" onclick="app.deleteCustomRole('${roleKey}')">
+                <i class="fas fa-trash"></i>
+              </button>
+            ` : ''}
+          </div>
+        </div>
+        <div class="role-content">
+          <div class="role-stats">
+            <div class="role-stat">
+              <span class="stat-label">Permissions</span>
+              <span class="stat-value">${permissionCount}</span>
+            </div>
+            <div class="role-stat">
+              <span class="stat-label">Niveau</span>
+              <span class="stat-value">${roleData.level || 'N/A'}</span>
+            </div>
+          </div>
+          <div class="role-permissions">
+            ${roleData.permissions ? Object.entries(roleData.permissions).map(([module, perms]) => `
+              <div class="permission-tag">
+                <span class="module-name">${module}</span>
+                <span class="permission-count">${perms.length}</span>
+              </div>
+            `).join('') : '<span class="no-permissions">Aucune permission</span>'}
           </div>
         </div>
       </div>

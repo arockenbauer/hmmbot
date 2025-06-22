@@ -12,7 +12,8 @@ const __dirname = path.dirname(__filename);
 const commands = [];
 const commandsPath = path.join(__dirname, 'commands');
 for (const file of fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'))) {
-  const command = await import(`./commands/${file}`);
+  const commandModule = await import(`./commands/${file}`);
+  const command = commandModule.default || commandModule;
   commands.push(command.data.toJSON());
 }
 

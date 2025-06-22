@@ -3168,6 +3168,194 @@ input:checked + .toggle-slider:before {
   }
 }
 
+/* ===============================================
+   CARTES DE RÔLES AMÉLIORÉES - STYLES
+   =============================================== */
+
+.roles-section .roles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+  padding: 4px;
+}
+
+.roles-section .role-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.roles-section .role-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--border-hover);
+}
+
+.roles-section .role-card.system-role {
+  border-left: 4px solid var(--primary-color);
+}
+
+.roles-section .role-card.custom-role {
+  border-left: 4px solid var(--success-color);
+}
+
+.roles-section .role-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.roles-section .role-info {
+  flex: 1;
+}
+
+.roles-section .role-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 4px 0;
+  line-height: 1.3;
+}
+
+.roles-section .role-type {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.roles-section .system-role .role-type {
+  background: rgba(88, 101, 242, 0.1);
+  color: var(--primary-color);
+  border: 1px solid rgba(88, 101, 242, 0.2);
+}
+
+.roles-section .custom-role .role-type {
+  background: rgba(0, 210, 106, 0.1);
+  color: var(--success-color);
+  border: 1px solid rgba(0, 210, 106, 0.2);
+}
+
+.roles-section .role-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.roles-section .role-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.roles-section .role-stats {
+  display: flex;
+  gap: 16px;
+}
+
+.roles-section .role-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.roles-section .stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.roles-section .stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.roles-section .role-permissions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 32px;
+  align-items: flex-start;
+}
+
+.roles-section .permission-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.roles-section .permission-tag:hover {
+  background: var(--bg-quaternary);
+  border-color: var(--border-hover);
+}
+
+.roles-section .module-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+
+.roles-section .permission-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  background: var(--primary-color);
+  color: white;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.roles-section .no-permissions {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border-color);
+}
+
+.roles-section .no-roles {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 2px dashed var(--border-color);
+}
+
+.roles-section .no-roles::before {
+  content: '👤';
+  display: block;
+  font-size: 32px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
 /* ===== NOTIFICATIONS ===== */
 .notification-container {
   position: fixed;

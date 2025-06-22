@@ -112,7 +112,8 @@ client.commands = new Collection();
 // Load commands
 const commandsPath = path.join(__dirname, 'commands');
 for (const file of fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'))) {
-  const command = await import(`./commands/${file}`);
+  const commandModule = await import(`./commands/${file}`);
+  const command = commandModule.default || commandModule;
   client.commands.set(command.data.name, command);
   console.log(chalk.green(`[COMMAND]`) + ` ${command.data.name} chargée.`);
 }

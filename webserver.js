@@ -251,7 +251,7 @@ app.delete('/api/roles/custom/:roleId', checkPermission('users', 'manage_roles')
 });
 
 // Get config
-app.get('/api/config', checkPermission('config', 'view'), (req, res) => {
+app.get('/api/config', checkPermission('dashboard', 'view'), (req, res) => {
   try {
     const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
     res.json(config);

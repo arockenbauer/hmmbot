@@ -53,7 +53,7 @@ export class UserManager {
     embeds: {
       name: 'Embeds',
       icon: 'fas fa-code',
-      permissions: ['view', 'edit']
+      permissions: ['view', 'send']
     },
     config: {
       name: 'Configuration',
@@ -89,7 +89,7 @@ export class UserManager {
         channels: ['view', 'edit'],
         roles: ['view', 'edit'],
         logs: ['view', 'edit'],
-        embeds: ['view', 'edit'],
+        embeds: ['view', 'send'],
         config: ['view', 'edit'],
         users: ['view', 'create', 'edit', 'delete']
       },

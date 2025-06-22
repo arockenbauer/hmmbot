@@ -570,7 +570,7 @@ app.get('/api/bot/logs/files/:filename', (req, res) => {
 });
 
 // Send custom embed
-app.post('/api/embeds/send', async (req, res) => {
+app.post('/api/embeds/send', checkPermission('embeds', 'send'), async (req, res) => {
   try {
     if (!global.botClient || !global.botClient.isReady()) {
       return res.status(503).json({ error: 'Bot non connecté' });

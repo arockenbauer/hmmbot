@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import { Logger } from './src/utils/logger.js';
 import { UserManager } from './src/utils/userManager.js';
 import { LogCleaner } from './src/utils/logCleaner.js';
+import { updateManager } from './src/utils/updateManager.js';
 import dotenv from 'dotenv';
 
 // Charger les variables d'environnement
@@ -1194,6 +1195,195 @@ app.delete('/api/roles/custom/:roleId', authenticateToken, checkPermission('user
   } catch (error) {
     console.error('Erreur lors de la suppression du rôle personnalisé:', error);
     res.status(500).json({ error: error.message || 'Erreur serveur' });
+  }
+});
+
+// ===== ROUTES API POUR LE MODULE DE MISE À JOUR =====
+
+// Middleware pour vérifier les permissions de configuration des mises à jour
+const checkUpdateConfigPermission = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Non authentifié' });
+  }
+  
+  if (!UserManager.hasPermission(req.user, 'updates', 'config')) {
+    return res.status(403).json({ 
+      error: 'Accès refusé', 
+      message: 'Vous n\'avez pas la permission de configurer les mises à jour.' 
+    });
+  }
+  
+  next();
+};
+
+// Middleware pour vérifier les permissions d'application des mises à jour
+const checkUpdateApplyPermission = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Non authentifié' });
+  }
+  
+  if (!UserManager.hasPermission(req.user, 'updates', 'apply')) {
+    return res.status(403).json({ 
+      error: 'Accès refusé', 
+      message: 'Vous n\'avez pas la permission d\'appliquer les mises à jour.' 
+    });
+  }
+  
+  next();
+};
+
+// Middleware pour vérifier les permissions de visualisation des mises à jour
+const checkUpdateViewPermission = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Non authentifié' });
+  }
+  
+  if (!UserManager.hasPermission(req.user, 'updates', 'view')) {
+    return res.status(403).json({ 
+      error: 'Accès refusé', 
+      message: 'Vous n\'avez pas la permission de visualiser les mises à jour.' 
+    });
+  }
+  
+  next();
+};
+
+// Obtenir le statut des mises à jour (permission view requise)
+app.get('/api/updates/status', checkPermission('updates', 'view'), (req, res) => {
+  try {
+    const status = updateManager.getStatus();
+    res.json(status);
+  } catch (error) {
+    console.error('Erreur lors de la récupération du statut des mises à jour:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Vérifier manuellement les mises à jour (permission view requise)
+app.post('/api/updates/check', checkPermission('updates', 'view'), async (req, res) => {
+  try {
+    const result = await updateManager.checkForUpdates();
+    res.json(result);
+  } catch (error) {
+    console.error('Erreur lors de la vérification des mises à jour:', error);
+    res.status(500).json({ error: 'Erreur lors de la vérification des mises à jour' });
+  }
+});
+
+// Obtenir les détails des changements (permission view requise)
+app.get('/api/updates/changes', checkPermission('updates', 'view'), (req, res) => {
+  try {
+    const status = updateManager.getStatus();
+    if (!status.updateAvailable || !status.pendingChanges) {
+      return res.json({ available: false, changes: null });
+    }
+    
+    res.json({
+      available: true,
+      changes: status.pendingChanges
+    });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des changements:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Appliquer la mise à jour (permission apply requise)
+app.post('/api/updates/apply', checkUpdateApplyPermission, async (req, res) => {
+  try {
+    const { force = false } = req.body;
+    
+    let result;
+    if (force) {
+      result = await updateManager.forceUpdate();
+    } else {
+      result = await updateManager.applyUpdate();
+    }
+    
+    // Programmer le redémarrage après avoir envoyé la réponse
+    res.json(result);
+    
+    // Redémarrer l'application après un délai
+    setTimeout(() => {
+      updateManager.restartApplication();
+    }, 2000);
+    
+  } catch (error) {
+    console.error('Erreur lors de l\'application de la mise à jour:', error);
+    res.status(500).json({ error: error.message || 'Erreur lors de l\'application de la mise à jour' });
+  }
+});
+
+// Récupérer les modifications stashées (permission view requise)
+app.get('/api/updates/stash', checkUpdateViewPermission, async (req, res) => {
+  try {
+    const stashedChanges = await updateManager.getStashedChanges();
+    res.json({ stashedChanges });
+  } catch (error) {
+    console.error('Erreur lors de la récupération des modifications stashées:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Restaurer les modifications stashées (permission apply requise)
+app.post('/api/updates/stash/restore', checkUpdateApplyPermission, async (req, res) => {
+  try {
+    const result = await updateManager.restoreStashedChanges();
+    res.json(result);
+  } catch (error) {
+    console.error('Erreur lors de la restauration des modifications:', error);
+    res.status(500).json({ error: error.message || 'Erreur lors de la restauration' });
+  }
+});
+
+// Obtenir la configuration des mises à jour (permission config requise)
+app.get('/api/updates/config', checkUpdateConfigPermission, (req, res) => {
+  try {
+    const status = updateManager.getStatus();
+    res.json(status.config);
+  } catch (error) {
+    console.error('Erreur lors de la récupération de la configuration:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Mettre à jour la configuration (permission config requise)
+app.post('/api/updates/config', checkUpdateConfigPermission, (req, res) => {
+  try {
+    const { checkIntervalMinutes, autoCheck, excludedFiles } = req.body;
+    
+    const newConfig = {};
+    if (typeof checkIntervalMinutes === 'number' && checkIntervalMinutes > 0) {
+      newConfig.checkIntervalMinutes = checkIntervalMinutes;
+    }
+    if (typeof autoCheck === 'boolean') {
+      newConfig.autoCheck = autoCheck;
+    }
+    if (Array.isArray(excludedFiles)) {
+      newConfig.excludedFiles = excludedFiles;
+    }
+    
+    updateManager.updateConfig(newConfig);
+    res.json({ success: true, message: 'Configuration mise à jour' });
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de la configuration:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Redémarrer l'application manuellement (permission apply requise)
+app.post('/api/updates/restart', checkUpdateApplyPermission, (req, res) => {
+  try {
+    res.json({ success: true, message: 'Redémarrage en cours...' });
+    
+    // Redémarrer après un délai
+    setTimeout(() => {
+      updateManager.restartApplication();
+    }, 1000);
+    
+  } catch (error) {
+    console.error('Erreur lors du redémarrage:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 

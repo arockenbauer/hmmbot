@@ -64,6 +64,11 @@ export class UserManager {
       name: 'Utilisateurs',
       icon: 'fas fa-users',
       permissions: ['view', 'create', 'edit', 'delete', 'manage_roles']
+    },
+    updates: {
+      name: 'Mise à jour',
+      icon: 'fas fa-download',
+      permissions: ['view', 'apply', 'config']
     }
   };
 
@@ -89,9 +94,10 @@ export class UserManager {
         channels: ['view', 'edit'],
         roles: ['view', 'edit'],
         logs: ['view', 'edit'],
-        embeds: ['view', 'send'],
+        embeds: ['view', 'edit', 'send'],
         config: ['view', 'edit'],
-        users: ['view', 'create', 'edit', 'delete']
+        users: ['view', 'create', 'edit', 'delete'],
+        updates: ['view', 'apply', 'config']
       },
       isSystem: true
     },

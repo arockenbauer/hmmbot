@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { startWebServer } from '../webserver.js';
 import { Logger } from './utils/logger.js';
 import { TerminalCommands } from './utils/terminalCommands.js';
+import { updateManager } from './utils/updateManager.js';
 
 config();
 

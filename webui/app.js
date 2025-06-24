@@ -18,6 +18,12 @@ class HmmBotAdmin {
     this.allRoles = {};
     this.modules = {};
     
+    // Données pour le module de mise à jour
+    this.updateStatus = null;
+    this.updateChanges = null;
+    this.updateConfig = null;
+    this.updateCheckInterval = null;
+    
     // Données par défaut pour les rôles et modules
     this.initDefaultData();
     this.init();
@@ -39,7 +45,8 @@ class HmmBotAdmin {
           roles: ['view', 'edit'],
           logs: ['view', 'config'],
           embeds: ['view', 'edit', 'send'],
-          users: ['view', 'create', 'edit', 'delete', 'manage_roles']
+          users: ['view', 'create', 'edit', 'delete', 'manage_roles'],
+          updates: ['view', 'apply', 'config']
         }
       },
       admin: { 
@@ -54,7 +61,8 @@ class HmmBotAdmin {
           roles: ['view'],
           logs: ['view'],
           embeds: ['view', 'edit', 'send'],
-          users: ['view', 'edit']
+          users: ['view', 'edit'],
+          updates: ['view']
         }
       },
       moderator: { 
@@ -69,7 +77,8 @@ class HmmBotAdmin {
           roles: ['view'],
           logs: ['view'],
           embeds: ['view', 'send'],
-          users: ['view']
+          users: ['view'],
+          updates: ['view']
         }
       },
       support: { 
@@ -84,7 +93,8 @@ class HmmBotAdmin {
           roles: ['view'],
           logs: ['view'],
           embeds: ['view'],
-          users: ['view']
+          users: ['view'],
+          updates: ['view']
         }
       },
       viewer: { 
@@ -99,7 +109,8 @@ class HmmBotAdmin {
           roles: ['view'],
           logs: ['view'],
           embeds: ['view'],
-          users: ['view']
+          users: ['view'],
+          updates: ['view']
         }
       }
     };
@@ -147,6 +158,11 @@ class HmmBotAdmin {
         icon: 'fas fa-code',
         permissions: ['view', 'edit', 'send']
       },
+      updates: {
+        name: 'Mise à jour',
+        icon: 'fas fa-download',
+        permissions: ['view', 'apply', 'config']
+      },
       users: {
         name: 'Utilisateurs',
         icon: 'fas fa-users',
@@ -169,6 +185,7 @@ class HmmBotAdmin {
         await this.loadServerData();
         await this.loadUsers();
         await this.loadRoles();
+        await this.loadUpdateStatus();
         this.showApp();
         this.updateUserInfo();
         this.updateNavigation();
@@ -177,12 +194,16 @@ class HmmBotAdmin {
           this.loadBotStats();
           this.loadTicketStats();
           this.loadRecentLogs();
+          this.loadUpdateStatus(); // Vérifier les mises à jour périodiquement
           if (this.currentSection === 'logs') {
             this.loadLogFiles();
           }
           if (this.currentSection === 'tickets') {
             this.loadActiveTickets();
             this.loadTranscripts();
+          }
+          if (this.currentSection === 'updates') {
+            this.loadUpdateChanges();
           }
         }, 30000);
       } catch (error) {
@@ -1018,7 +1039,8 @@ class HmmBotAdmin {
       roles: 'Rôles',
       logs: 'Logs',
       embeds: 'Embeds',
-      users: 'Utilisateurs'
+      users: 'Utilisateurs',
+      updates: 'Mise à jour'
     };
     document.getElementById('page-title').textContent = titles[section] || section;
     this.currentSection = section;
@@ -1115,6 +1137,16 @@ class HmmBotAdmin {
           this.loadRoles();
           this.loadModules();
           // Pas de applyEditPermissions car roles a sa propre logique de permissions
+        } else {
+          content.innerHTML = '<div class="card"><h2>Accès refusé</h2><p>Vous n\'avez pas les permissions nécessaires pour accéder à cette section.</p></div>';
+        }
+        break;
+      case 'updates':
+        if (this.hasPermission('updates', 'view')) {
+          content.innerHTML = this.renderUpdates();
+          this.loadUpdateStatus();
+          this.loadUpdateChanges();
+          this.loadUpdateConfig();
         } else {
           content.innerHTML = '<div class="card"><h2>Accès refusé</h2><p>Vous n\'avez pas les permissions nécessaires pour accéder à cette section.</p></div>';
         }
@@ -5049,6 +5081,608 @@ class HmmBotAdmin {
     } catch (error) {
       console.error('Erreur lors de la sauvegarde de la configuration:', error);
       this.showNotification('Erreur de connexion', 'error');
+    }
+  }
+
+  // ===== MÉTHODES POUR LE MODULE DE MISE À JOUR =====
+
+  /**
+   * Charge le statut des mises à jour depuis l'API
+   */
+  async loadUpdateStatus() {
+    try {
+      const res = await fetch('/api/updates/status', {
+        headers: {
+          'Authorization': 'Bearer ' + this.token
+        }
+      });
+
+      if (res.ok) {
+        this.updateStatus = await res.json();
+        this.updateUpdateBadge();
+      } else {
+        console.error('Erreur lors du chargement du statut des mises à jour');
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement du statut des mises à jour:', error);
+    }
+  }
+
+  /**
+   * Charge les détails des changements depuis l'API
+   */
+  async loadUpdateChanges() {
+    try {
+      const res = await fetch('/api/updates/changes', {
+        headers: {
+          'Authorization': 'Bearer ' + this.token
+        }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        this.updateChanges = data.available ? data.changes : null;
+        
+        // Mettre à jour l'affichage si on est sur la section updates
+        if (this.currentSection === 'updates') {
+          this.renderUpdatesContent();
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des changements:', error);
+    }
+  }
+
+  /**
+   * Charge la configuration des mises à jour (permission config requise)
+   */
+  async loadUpdateConfig() {
+    if (!this.hasPermission('updates', 'config')) return;
+
+    try {
+      const res = await fetch('/api/updates/config', {
+        headers: {
+          'Authorization': 'Bearer ' + this.token
+        }
+      });
+
+      if (res.ok) {
+        this.updateConfig = await res.json();
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement de la configuration des mises à jour:', error);
+    }
+  }
+
+  /**
+   * Met à jour le badge de notification de mise à jour
+   */
+  updateUpdateBadge() {
+    const badge = document.getElementById('update-badge');
+    if (badge) {
+      if (this.updateStatus?.updateAvailable) {
+        badge.style.display = 'inline';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  }
+
+  /**
+   * Vérifie manuellement les mises à jour
+   */
+  async checkForUpdates() {
+    try {
+      const res = await fetch('/api/updates/check', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + this.token
+        }
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        await this.loadUpdateStatus();
+        await this.loadUpdateChanges();
+        
+        if (result.available) {
+          this.showNotification('Mise à jour disponible !', 'warning');
+        } else {
+          this.showNotification('Aucune mise à jour disponible', 'success');
+        }
+        
+        // Mettre à jour l'affichage
+        if (this.currentSection === 'updates') {
+          this.renderUpdatesContent();
+        }
+      } else {
+        const error = await res.json();
+        this.showNotification(error.error || 'Erreur lors de la vérification', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification des mises à jour:', error);
+      this.showNotification('Erreur de connexion', 'error');
+    }
+  }
+
+  /**
+   * Applique la mise à jour (permission apply requise)
+   */
+  async applyUpdate() {
+    if (!this.hasPermission('updates', 'apply')) {
+      this.showNotification('Vous n\'avez pas la permission d\'appliquer les mises à jour', 'error');
+      return;
+    }
+
+    if (!confirm('Êtes-vous sûr de vouloir appliquer cette mise à jour ? L\'application va redémarrer.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/updates/apply', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + this.token
+        }
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        this.showNotification('Mise à jour appliquée ! Redémarrage en cours...', 'success');
+        
+        // Afficher un message de redémarrage
+        setTimeout(() => {
+          document.body.innerHTML = `
+            <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: var(--bg-primary); color: var(--text-primary); text-align: center;">
+              <div>
+                <i class="fas fa-sync fa-spin" style="font-size: 48px; margin-bottom: 20px;"></i>
+                <h2>Redémarrage en cours...</h2>
+                <p>L'application va redémarrer automatiquement.</p>
+                <p><small>Veuillez patienter quelques secondes puis rafraîchir la page.</small></p>
+              </div>
+            </div>
+          `;
+        }, 2000);
+        
+      } else {
+        const error = await res.json();
+        this.showNotification(error.error || 'Erreur lors de l\'application de la mise à jour', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'application de la mise à jour:', error);
+      this.showNotification('Erreur de connexion', 'error');
+    }
+  }
+
+  /**
+   * Redémarre l'application manuellement (permission apply requise)
+   */
+  async restartApplication() {
+    if (!this.hasPermission('updates', 'apply')) {
+      this.showNotification('Vous n\'avez pas la permission de redémarrer l\'application', 'error');
+      return;
+    }
+
+    if (!confirm('Êtes-vous sûr de vouloir redémarrer l\'application ?')) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/updates/restart', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + this.token
+        }
+      });
+
+      if (res.ok) {
+        this.showNotification('Redémarrage en cours...', 'info');
+        
+        setTimeout(() => {
+          document.body.innerHTML = `
+            <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: var(--bg-primary); color: var(--text-primary); text-align: center;">
+              <div>
+                <i class="fas fa-sync fa-spin" style="font-size: 48px; margin-bottom: 20px;"></i>
+                <h2>Redémarrage en cours...</h2>
+                <p>L'application va redémarrer automatiquement.</p>
+                <p><small>Veuillez patienter quelques secondes puis rafraîchir la page.</small></p>
+              </div>
+            </div>
+          `;
+        }, 1000);
+        
+      } else {
+        const error = await res.json();
+        this.showNotification(error.error || 'Erreur lors du redémarrage', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors du redémarrage:', error);
+      this.showNotification('Erreur de connexion', 'error');
+    }
+  }
+
+  /**
+   * Met à jour la configuration des mises à jour (permission config requise)
+   */
+  async updateUpdateConfig(configData) {
+    if (!this.hasPermission('updates', 'config')) {
+      this.showNotification('Vous n\'avez pas la permission de modifier la configuration des mises à jour', 'error');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/updates/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + this.token
+        },
+        body: JSON.stringify(configData)
+      });
+
+      if (res.ok) {
+        this.showNotification('Configuration mise à jour avec succès !', 'success');
+        await this.loadUpdateConfig();
+        
+        // Mettre à jour l'affichage
+        if (this.currentSection === 'updates') {
+          this.renderUpdatesContent();
+        }
+      } else {
+        const error = await res.json();
+        this.showNotification(error.error || 'Erreur lors de la mise à jour de la configuration', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de la configuration:', error);
+      this.showNotification('Erreur de connexion', 'error');
+    }
+  }
+
+  /**
+   * Rend le contenu principal du module de mise à jour
+   */
+  renderUpdates() {
+    if (!this.hasPermission('updates', 'view')) {
+      return `
+        <div class="access-denied-section">
+          <div class="access-denied-icon">
+            <i class="fas fa-lock"></i>
+          </div>
+          <h2 class="access-denied-title">Accès Refusé</h2>
+          <p class="access-denied-message">
+            Vous n'avez pas les permissions nécessaires pour accéder au module de mise à jour.<br>
+            Contactez un administrateur pour obtenir les permissions appropriées.
+          </p>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="updates-section">
+        <div class="updates-header">
+          <h1 class="updates-title">
+            <i class="fas fa-download"></i>
+            Système de Mise à Jour
+          </h1>
+          <div class="updates-actions">
+            <button class="btn btn-secondary" onclick="app.checkForUpdates()">
+              <i class="fas fa-sync"></i>
+              Vérifier
+            </button>
+            ${this.hasPermission('updates', 'apply') ? `
+              <button class="btn btn-warning" onclick="app.restartApplication()">
+                <i class="fas fa-power-off"></i>
+                Redémarrer
+              </button>
+            ` : ''}
+          </div>
+        </div>
+        
+        <div id="updates-content">
+          ${this.renderUpdatesContent()}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Rend le contenu dynamique du module de mise à jour
+   */
+  renderUpdatesContent() {
+    const content = document.getElementById('updates-content');
+    if (!content) return '';
+
+    let html = '';
+
+    // Statut des mises à jour
+    html += this.renderUpdateStatus();
+
+    // Changements disponibles
+    if (this.updateStatus?.updateAvailable && this.updateChanges) {
+      html += this.renderUpdateChanges();
+    }
+
+    // Configuration (permission config requise)
+    if (this.hasPermission('updates', 'config')) {
+      html += this.renderUpdateConfig();
+    }
+
+    if (content) {
+      content.innerHTML = html;
+    }
+
+    return html;
+  }
+
+  /**
+   * Rend la section de statut des mises à jour
+   */
+  renderUpdateStatus() {
+    const status = this.updateStatus;
+    if (!status) {
+      return `
+        <div class="update-status-card">
+          <div class="update-status-header">
+            <h3 class="update-status-title">Statut des Mises à Jour</h3>
+            <div class="update-status-indicator">
+              <i class="fas fa-spinner fa-spin"></i>
+              Chargement...
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    const indicatorClass = status.updateAvailable ? 'available' : 'up-to-date';
+    const indicatorText = status.updateAvailable ? 'Mise à jour disponible' : 'À jour';
+    const indicatorIcon = status.updateAvailable ? 'fas fa-exclamation-triangle' : 'fas fa-check-circle';
+
+    return `
+      <div class="update-status-card">
+        <div class="update-status-header">
+          <h3 class="update-status-title">Statut des Mises à Jour</h3>
+          <div class="update-status-indicator ${indicatorClass}">
+            <i class="${indicatorIcon}"></i>
+            ${indicatorText}
+          </div>
+        </div>
+        
+        <div class="update-status-info">
+          <div class="update-info-item">
+            <span class="update-info-label">Dernière vérification</span>
+            <span class="update-info-value">
+              ${status.lastCheck ? new Date(status.lastCheck).toLocaleString('fr-FR') : 'Jamais'}
+            </span>
+          </div>
+          <div class="update-info-item">
+            <span class="update-info-label">Vérification automatique</span>
+            <span class="update-info-value">
+              ${status.autoCheckRunning ? 'Activée' : 'Désactivée'}
+            </span>
+          </div>
+          <div class="update-info-item">
+            <span class="update-info-label">Intervalle de vérification</span>
+            <span class="update-info-value">
+              ${status.config?.checkIntervalMinutes || 30} minutes
+            </span>
+          </div>
+        </div>
+        
+        ${status.updateAvailable && this.hasPermission('updates', 'apply') ? `
+          <div style="margin-top: 20px;">
+            <button class="btn btn-primary" onclick="app.applyUpdate()">
+              <i class="fas fa-download"></i>
+              Appliquer la mise à jour
+            </button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  /**
+   * Rend la section des changements disponibles
+   */
+  renderUpdateChanges() {
+    if (!this.updateChanges) return '';
+
+    const changes = this.updateChanges;
+    
+    return `
+      <div class="changes-section">
+        <div class="changes-header">
+          <h3 class="changes-title">Changements Disponibles</h3>
+          <div class="changes-summary">
+            <div class="changes-summary-item">
+              <i class="fas fa-file"></i>
+              ${changes.summary.total} fichier(s)
+            </div>
+            <div class="changes-summary-item additions">
+              <i class="fas fa-plus"></i>
+              +${changes.summary.insertions}
+            </div>
+            <div class="changes-summary-item deletions">
+              <i class="fas fa-minus"></i>
+              -${changes.summary.deletions}
+            </div>
+          </div>
+        </div>
+        
+        <div class="changes-content">
+          ${this.renderFilesList(changes.files)}
+          ${this.renderCommitsList(changes.commits)}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Rend la liste des fichiers modifiés
+   */
+  renderFilesList(files) {
+    if (!files || files.length === 0) return '';
+
+    return `
+      <div class="files-list">
+        <h4 class="files-list-header">Fichiers Modifiés</h4>
+        ${files.map(file => {
+          const statusIcons = {
+            added: '+',
+            modified: 'M',
+            deleted: '-'
+          };
+          
+          return `
+            <div class="file-item ${file.excluded ? 'file-excluded' : ''}">
+              <div class="file-info">
+                <div class="file-status-icon ${file.status}">
+                  ${statusIcons[file.status] || '?'}
+                </div>
+                <span class="file-path">${file.file}</span>
+                ${file.excluded ? '<span class="excluded-badge">Exclu</span>' : ''}
+              </div>
+              <div class="file-changes">
+                ${file.insertions > 0 ? `<span class="file-changes-additions">+${file.insertions}</span>` : ''}
+                ${file.deletions > 0 ? `<span class="file-changes-deletions">-${file.deletions}</span>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  /**
+   * Rend la liste des commits
+   */
+  renderCommitsList(commits) {
+    if (!commits || commits.length === 0) return '';
+
+    return `
+      <div class="commits-list">
+        <h4 class="commits-list-header">Commits</h4>
+        ${commits.map(commit => `
+          <div class="commit-item">
+            <div class="commit-hash">${commit.hash}</div>
+            <div class="commit-info">
+              <div class="commit-message">${commit.message}</div>
+              <div class="commit-meta">
+                Par ${commit.author} • ${new Date(commit.date).toLocaleString('fr-FR')}
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  /**
+   * Rend la section de configuration des mises à jour
+   */
+  renderUpdateConfig() {
+    if (!this.hasPermission('updates', 'config') || !this.updateConfig) return '';
+
+    return `
+      <div class="config-section">
+        <h3 class="config-title">Configuration des Mises à Jour</h3>
+        
+        <form class="config-form" onsubmit="app.handleUpdateConfigSubmit(event)">
+          <div class="config-row">
+            <div class="config-field">
+              <label class="config-label">Intervalle de vérification (minutes)</label>
+              <input type="number" class="config-input" name="checkIntervalMinutes" 
+                     value="${this.updateConfig.checkIntervalMinutes}" min="1" max="1440">
+            </div>
+          </div>
+          
+          <div class="config-checkbox">
+            <input type="checkbox" name="autoCheck" ${this.updateConfig.autoCheck ? 'checked' : ''}>
+            <label>Vérification automatique activée</label>
+          </div>
+          
+          <div class="excluded-files-section">
+            <h4>Fichiers Exclus</h4>
+            <div class="excluded-files-list">
+              ${this.updateConfig.excludedFiles.map((file, index) => `
+                <div class="excluded-file-item">
+                  <span class="excluded-file-path">${file}</span>
+                  <button type="button" class="remove-excluded-btn" onclick="app.removeExcludedFile(${index})">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+            
+            <div class="add-excluded-form">
+              <input type="text" class="add-excluded-input" id="new-excluded-file" 
+                     placeholder="Chemin du fichier à exclure (ex: .env, data/)">
+              <button type="button" class="add-excluded-btn" onclick="app.addExcludedFile()">
+                <i class="fas fa-plus"></i>
+                Ajouter
+              </button>
+            </div>
+          </div>
+          
+          <div style="margin-top: 20px;">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-save"></i>
+              Sauvegarder la Configuration
+            </button>
+          </div>
+        </form>
+      </div>
+    `;
+  }
+
+  /**
+   * Gère la soumission du formulaire de configuration
+   */
+  async handleUpdateConfigSubmit(event) {
+    event.preventDefault();
+    
+    const formData = new FormData(event.target);
+    const configData = {
+      checkIntervalMinutes: parseInt(formData.get('checkIntervalMinutes')),
+      autoCheck: formData.has('autoCheck'),
+      excludedFiles: this.updateConfig.excludedFiles
+    };
+    
+    await this.updateUpdateConfig(configData);
+  }
+
+  /**
+   * Ajoute un fichier à la liste des exclusions
+   */
+  addExcludedFile() {
+    const input = document.getElementById('new-excluded-file');
+    const filePath = input.value.trim();
+    
+    if (!filePath) {
+      this.showNotification('Veuillez saisir un chemin de fichier', 'warning');
+      return;
+    }
+    
+    if (this.updateConfig.excludedFiles.includes(filePath)) {
+      this.showNotification('Ce fichier est déjà dans la liste des exclusions', 'warning');
+      return;
+    }
+    
+    this.updateConfig.excludedFiles.push(filePath);
+    input.value = '';
+    
+    // Mettre à jour l'affichage
+    this.renderUpdatesContent();
+  }
+
+  /**
+   * Supprime un fichier de la liste des exclusions
+   */
+  removeExcludedFile(index) {
+    if (index >= 0 && index < this.updateConfig.excludedFiles.length) {
+      this.updateConfig.excludedFiles.splice(index, 1);
+      
+      // Mettre à jour l'affichage
+      this.renderUpdatesContent();
     }
   }
 

@@ -1,4 +1,4 @@
-# HmmBot - Bot Discord Multitâches
+# HmmBot - Bot Discord multitâches
 
 HmmBot est un bot Discord complet et polyvalent conçu pour gérer tous les aspects d'un serveur Discord. Il offre un système de commandes slash moderne, une interface web d'administration, et de nombreuses fonctionnalités intégrées.
 

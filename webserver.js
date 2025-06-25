@@ -18,7 +18,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 25584;
+const PORT = process.env.WEB_PORT || 25584;
 const JWT_SECRET = process.env.WEB_JWT_SECRET || 'supersecret';
 const PASSWORD = process.env.WEB_PASSWORD || 'admin';
 const CONFIG_PATH = path.join(__dirname, 'config.json');

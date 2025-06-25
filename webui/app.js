@@ -1536,7 +1536,6 @@ class HmmBotAdmin {
           <i class="fas fa-cog"></i>
           Configuration Générale
         </h1>
-        <p>Configurez les paramètres généraux du bot.</p>
       </div>
       
       <div class="card">

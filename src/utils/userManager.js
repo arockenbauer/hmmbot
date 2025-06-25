@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 export class UserManager {
   static USERS_FILE = path.join(__dirname, '../../data/users.json');
   static SESSIONS_FILE = path.join(__dirname, '../../data/sessions.json');
-  static SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || 'SuperAdmin2024!';
+  static SUPERADMIN_PASSWORD = process.env.WEB_PASSWORD || 'SuperAdmin2024!';
   
   // Modules disponibles avec leurs permissions
   static MODULES = {

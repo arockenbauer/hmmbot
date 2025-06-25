@@ -1365,7 +1365,7 @@ class HmmBotAdmin {
         <div class="card-header">
           <h3 class="card-title">
             <i class="fas fa-file-alt"></i>
-            Fichiers de Logs
+            Fichiers de logs
           </h3>
           <div class="card-actions">
             <button class="btn btn-primary" id="create-test-logs-btn">

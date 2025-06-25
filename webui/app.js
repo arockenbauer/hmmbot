@@ -5298,7 +5298,7 @@ class HmmBotAdmin {
         <div class="updates-header">
           <h1 class="updates-title">
             <i class="fas fa-download"></i>
-            Système de Mise à Jour
+            Système de mise à jour
           </h1>
           <div class="updates-actions">
             <button class="btn btn-secondary" onclick="app.checkForUpdates()">
@@ -5520,7 +5520,7 @@ class HmmBotAdmin {
 
     return `
       <div class="config-section">
-        <h3 class="config-title">Configuration des Mises à Jour</h3>
+        <h3 class="config-title">Configuration des mises à jour</h3>
         
         <form class="config-form" onsubmit="app.handleUpdateConfigSubmit(event)">
           <div class="config-row">

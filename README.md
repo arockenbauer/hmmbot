@@ -18,9 +18,9 @@ HmmBot est un bot Discord complet et polyvalent conçu pour gérer tous les aspe
 
 ## Fonctionnalités principales
 
-### Core Features
+### Core features
 - **Commandes Slash** : Interface moderne avec autocomplétion
-- **Interface Web** : Panel d'administration complet avec authentification JWT
+- **Interface web** : Panel d'administration complet avec authentification JWT
 - **Système de logs** : Enregistrement détaillé de toutes les activités
 - **Console interactive** : Commandes terminal pour la gestion en temps réel
 - **Déploiement automatique** : Les commandes slash sont déployées automatiquement au démarrage
@@ -44,7 +44,7 @@ HmmBot est un bot Discord complet et polyvalent conçu pour gérer tous les aspe
 
 ### Étapes d'installation
 
-1. **Cloner le repository**
+1. **Cloner le repo**
 ```bash
 git clone https://github.com/arockenbauer/hmmbot.git
 ```

@@ -1531,69 +1531,6 @@ class HmmBotAdmin {
   // Rendre la section de configuration
   renderConfig() {
     return `
-      <div class="section-header">
-        <h1>
-          <i class="fas fa-cog"></i>
-          Configuration Générale
-        </h1>
-      </div>
-      
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">
-            <i class="fas fa-sliders-h"></i>
-            Paramètres du Bot
-          </h3>
-        </div>
-        <div class="card-content">
-          <form id="general-config-form" onsubmit="app.saveConfig(event)">
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Préfixe du Bot</label>
-                <input type="text" name="prefix" class="form-input" 
-                       value="${this.config.prefix || '!'}" 
-                       placeholder="!">
-                <small class="form-help">Caractère utilisé pour déclencher les commandes</small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Langue</label>
-                <select name="language" class="form-select">
-                  <option value="fr" ${this.config.language === 'fr' ? 'selected' : ''}>Français</option>
-                  <option value="en" ${this.config.language === 'en' ? 'selected' : ''}>English</option>
-                </select>
-              </div>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">
-                  <input type="checkbox" name="debug_mode" ${this.config.debug_mode ? 'checked' : ''}>
-                  Mode Debug
-                </label>
-                <small class="form-help">Affiche plus d'informations dans les logs</small>
-              </div>
-              <div class="form-group">
-                <label class="form-label">
-                  <input type="checkbox" name="auto_backup" ${this.config.auto_backup ? 'checked' : ''}>
-                  Sauvegarde Automatique
-                </label>
-                <small class="form-help">Sauvegarde automatique des données importantes</small>
-              </div>
-            </div>
-            
-            <div class="form-actions">
-              <button type="submit" class="btn btn-primary">
-                <i class="fas fa-save"></i>
-                Sauvegarder
-              </button>
-              <button type="button" class="btn btn-secondary" onclick="location.reload()">
-                <i class="fas fa-undo"></i>
-                Annuler
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
     `;
   }
 

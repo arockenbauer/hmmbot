@@ -518,6 +518,45 @@ button:disabled,
   100% { transform: rotate(360deg); }
 }
 
+/* Styles pour le modal de déconnexion */
+.logout-confirm-modal {
+  padding: 2rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.logout-icon {
+  font-size: 3rem;
+  color: var(--danger-color);
+  background-color: rgba(242, 63, 67, 0.1);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+.logout-message {
+  font-size: 1.2rem;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+}
+
+.logout-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.logout-actions button {
+  min-width: 140px;
+}
+
 .form-help {
   display: block;
   color: var(--text-muted);

@@ -181,11 +181,45 @@ class HmmBotAdmin {
 
   async init() {
     this.setupEventListeners();
+    
+    // Ajouter un gestionnaire d'événements spécifique pour le bouton de déconnexion
+    setTimeout(() => {
+      const logoutBtn = document.getElementById('logout-btn');
+      if (logoutBtn) {
+        console.log('Ajout du gestionnaire d\'événements pour le bouton de déconnexion');
+        logoutBtn.addEventListener('click', () => {
+          console.log('Clic sur le bouton de déconnexion (gestionnaire direct)');
+          this.showLogoutConfirmModal();
+        });
+      }
+    }, 1000);
+    
     if (!this.token) {
       this.showLogin();
     } else {
+      // Afficher l'écran de connexion avec un loader pendant la vérification de la session
+      this.showLogin();
+      
+      // Afficher un loader sur le bouton de connexion
+      const loginBtn = document.querySelector('.login-btn');
+      const usernameInput = document.getElementById('username');
+      const passwordInput = document.getElementById('password');
+      
+      if (loginBtn) {
+        const originalBtnText = loginBtn.innerHTML;
+        loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Vérification de la session...';
+        loginBtn.disabled = true;
+      }
+      
+      // Désactiver les champs de formulaire pendant la vérification
+      if (usernameInput) usernameInput.disabled = true;
+      if (passwordInput) passwordInput.disabled = true;
+      
       try {
+        // Vérifier si la session est valide
         await this.loadCurrentUser();
+        
+        // Si on arrive ici, la session est valide, charger les données
         await this.loadConfig();
         await this.loadBotStats();
         await this.loadTicketStats();
@@ -194,10 +228,14 @@ class HmmBotAdmin {
         await this.loadUsers();
         await this.loadRoles();
         await this.loadUpdateStatus();
+        
+        // Afficher l'application
         this.showApp();
         this.updateUserInfo();
         this.updateNavigation();
         this.loadSection('dashboard');
+        
+        // Configurer l'actualisation périodique
         setInterval(() => {
           this.loadBotStats();
           this.loadTicketStats();
@@ -216,6 +254,28 @@ class HmmBotAdmin {
         }, 30000);
       } catch (error) {
         console.error('Erreur lors de l\'initialisation:', error);
+        
+        // Session expirée ou invalide, réinitialiser le token
+        localStorage.removeItem('jwt');
+        this.token = '';
+        this.currentUser = null;
+        
+        // Réinitialiser le formulaire de connexion
+        if (loginBtn) {
+          loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Se connecter';
+          loginBtn.disabled = false;
+        }
+        
+        if (usernameInput) usernameInput.disabled = false;
+        if (passwordInput) passwordInput.disabled = false;
+        
+        // Afficher un message d'erreur
+        const errorDiv = document.getElementById('login-error');
+        if (errorDiv) {
+          errorDiv.textContent = 'Session expirée. Veuillez vous reconnecter.';
+          errorDiv.style.display = 'block';
+        }
+        
         this.showLogin();
       }
     }
@@ -266,8 +326,10 @@ class HmmBotAdmin {
         const section = e.target.closest('.nav-item').dataset.section;
         this.loadSection(section);
       }
-      if (e.target.id === 'logout-btn') {
-        this.logout();
+      if (e.target.id === 'logout-btn' || e.target.closest('#logout-btn')) {
+        console.log('Clic sur le bouton de déconnexion détecté');
+        // Appeler directement la fonction showLogoutConfirmModal au lieu de logout
+        this.showLogoutConfirmModal();
       }
       if (e.target.id === 'sidebar-toggle') {
         this.toggleSidebar();
@@ -449,7 +511,14 @@ class HmmBotAdmin {
     }
   }
 
-  async logout() {
+  // Afficher le modal de confirmation de déconnexion
+  logout() {
+    console.log('Fonction logout appelée');
+    this.showLogoutConfirmModal();
+  }
+  
+  // Effectuer la déconnexion après confirmation
+  async performLogout() {
     try {
       // Informer le serveur de la déconnexion
       if (this.token) {
@@ -461,9 +530,34 @@ class HmmBotAdmin {
     } catch (error) {
       console.error('Erreur lors de la déconnexion:', error);
     } finally {
+      // Fermer le modal
+      this.closeModal();
+      
+      // Réinitialiser les données de session
       localStorage.removeItem('jwt');
       this.token = '';
       this.currentUser = null;
+      
+      // Réinitialiser le formulaire de connexion
+      const loginBtn = document.querySelector('.login-btn');
+      if (loginBtn) {
+        loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Se connecter';
+        loginBtn.disabled = false;
+      }
+      
+      const usernameInput = document.getElementById('username');
+      const passwordInput = document.getElementById('password');
+      if (usernameInput) usernameInput.disabled = false;
+      if (passwordInput) {
+        passwordInput.disabled = false;
+        passwordInput.value = ''; // Effacer le mot de passe par sécurité
+      }
+      
+      // Masquer les messages d'erreur précédents
+      const errorDiv = document.getElementById('login-error');
+      if (errorDiv) errorDiv.style.display = 'none';
+      
+      // Afficher l'écran de connexion
       this.showLogin();
     }
   }
@@ -474,11 +568,26 @@ class HmmBotAdmin {
       const res = await fetch('/api/user/me', {
         headers: { Authorization: 'Bearer ' + this.token }
       });
-      if (res.status === 401) {
-        throw new Error('Session expirée');
+      
+      // Gérer les différents cas d'erreur
+      if (res.status === 401 || res.status === 403) {
+        throw new Error('Session expirée ou non autorisée');
       }
-      if (!res.ok) throw new Error('Erreur de chargement');
-      this.currentUser = await res.json();
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'Erreur inconnue' }));
+        throw new Error(errorData.error || `Erreur de chargement (${res.status})`);
+      }
+      
+      // Charger les données de l'utilisateur
+      const userData = await res.json();
+      
+      // Vérifier que les données contiennent les informations nécessaires
+      if (!userData || !userData.username || !userData.role) {
+        throw new Error('Données utilisateur incomplètes');
+      }
+      
+      this.currentUser = userData;
     } catch (error) {
       console.error('Erreur lors du chargement de l\'utilisateur:', error);
       throw error;
@@ -1571,8 +1680,64 @@ class HmmBotAdmin {
   }
 
   closeModal() {
-    document.getElementById('modal-overlay').style.display = 'none';
+    document.getElementById('modal-overlay').classList.remove('active');
   }
+  
+  // Afficher le modal de confirmation de déconnexion
+  showLogoutConfirmModal() {
+    console.log('Fonction showLogoutConfirmModal appelée');
+    const modalTitle = document.getElementById('modal-title');
+    const modalContent = document.getElementById('modal-content');
+    const modalOverlay = document.getElementById('modal-overlay');
+    
+    console.log('Éléments du modal:', { modalTitle, modalContent, modalOverlay });
+    
+    modalTitle.textContent = 'Confirmation de déconnexion';
+    modalContent.innerHTML = `
+      <div class="logout-confirm-modal">
+        <div class="logout-icon">
+          <i class="fas fa-sign-out-alt"></i>
+        </div>
+        <p class="logout-message">Êtes-vous sûr de vouloir vous déconnecter ?</p>
+        <div class="logout-actions">
+          <button id="cancel-logout-btn" class="btn btn-secondary">
+            <i class="fas fa-times"></i>
+            Annuler
+          </button>
+          <button id="confirm-logout-btn" class="btn btn-danger">
+            <i class="fas fa-sign-out-alt"></i>
+            Se déconnecter
+          </button>
+        </div>
+      </div>
+    `;
+    
+    // Ajouter les gestionnaires d'événements
+    setTimeout(() => {
+      document.getElementById('cancel-logout-btn').addEventListener('click', () => {
+        this.closeModal();
+      });
+      
+      document.getElementById('confirm-logout-btn').addEventListener('click', async () => {
+        // Afficher le loader sur le bouton de confirmation
+        const confirmBtn = document.getElementById('confirm-logout-btn');
+        const originalBtnText = confirmBtn.innerHTML;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Déconnexion...';
+        confirmBtn.disabled = true;
+        
+        // Désactiver le bouton d'annulation également
+        const cancelBtn = document.getElementById('cancel-logout-btn');
+        cancelBtn.disabled = true;
+        
+        // Effectuer la déconnexion
+        await this.performLogout();
+      });
+    }, 100);
+    
+    // Rendre le modal visible en ajoutant la classe active
+    modalOverlay.classList.add('active');
+  }
+  
 
   escapeHtml(text) {
     const div = document.createElement('div');

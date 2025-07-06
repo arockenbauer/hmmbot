@@ -53,7 +53,21 @@ export async function execute(message, client) {
     const fakeInteraction = await prefixHandler.createFakeInteraction(message, command, args);
     
     if (!fakeInteraction) {
-      await message.reply('❌ Erreur lors de la conversion des arguments pour cette commande.');
+      // Créer un embed stylisé pour l'erreur
+      const { EmbedBuilder } = await import('discord.js');
+      const errorEmbed = new EmbedBuilder()
+        .setTitle('⚠️ Erreur de commande préfixe')
+        .setDescription(`La commande \`${prefixData.prefix}${commandName}\` n'a pas pu être exécutée correctement.`)
+        .addFields(
+          { name: '📝 Problème', value: 'Impossible de convertir les arguments pour cette commande.' },
+          { name: '💡 Solution recommandée', value: `Utilisez plutôt la commande slash \`/${commandName}\` qui est plus stable et guidée.` },
+          { name: '🧪 Note', value: 'Le système de commandes préfixe est actuellement en version **BÊTA** et peut présenter des instabilités.' }
+        )
+        .setColor('#f59f00')
+        .setFooter({ text: 'Système de préfixe • Version bêta' })
+        .setTimestamp();
+      
+      await message.reply({ embeds: [errorEmbed] });
       return;
     }
 
@@ -74,6 +88,9 @@ export async function execute(message, client) {
     console.error(`Erreur lors de l'exécution de la commande préfixe ${commandName}:`, error);
     
     try {
+      // Importer EmbedBuilder
+      const { EmbedBuilder } = await import('discord.js');
+      
       // Vérifier si l'erreur est liée à des arguments manquants
       if (error.message && error.message.includes('requise')) {
         // Utiliser la pagination pour les messages d'aide longs
@@ -83,15 +100,48 @@ export async function execute(message, client) {
           if (helpText.length > 1500) {
             await sendPaginatedHelp(message, prefixHandler, commandName);
           } else {
-            await message.reply(`❌ Erreur: ${error.message}\n\n${helpText}`);
+            // Créer un embed pour l'erreur d'argument manquant
+            const errorEmbed = new EmbedBuilder()
+              .setTitle('⚠️ Argument manquant')
+              .setDescription(`La commande \`${prefixData.prefix}${commandName}\` nécessite des arguments supplémentaires.`)
+              .addFields(
+                { name: '📝 Erreur', value: `\`${error.message}\`` },
+                { name: '💡 Solution recommandée', value: `Utilisez la commande slash \`/${commandName}\` qui guide l'entrée des paramètres.` },
+                { name: '🧪 Note', value: 'Le système de commandes préfixe est en version **BÊTA** et peut présenter des instabilités.' },
+                { name: '📚 Aide de la commande', value: helpText.length > 1024 ? helpText.substring(0, 1021) + '...' : helpText }
+              )
+              .setColor('#f59f00')
+              .setFooter({ text: 'Système de préfixe • Version bêta' })
+              .setTimestamp();
+            
+            await message.reply({ embeds: [errorEmbed] });
           }
           return;
         }
       }
       
-      await message.reply('❌ Erreur lors de l\'exécution de la commande.');
+      // Embed d'erreur générique
+      const genericErrorEmbed = new EmbedBuilder()
+        .setTitle('❌ Erreur d\'exécution')
+        .setDescription(`La commande \`${prefixData.prefix}${commandName}\` a rencontré une erreur lors de son exécution.`)
+        .addFields(
+          { name: '📝 Détails', value: error.message ? `\`${error.message}\`` : 'Erreur inconnue' },
+          { name: '💡 Alternative', value: `Essayez plutôt la commande slash \`/${commandName}\` qui est plus stable.` },
+          { name: '🧪 Note', value: 'Le système de commandes préfixe est en version **BÊTA**. Merci de signaler ce problème.' }
+        )
+        .setColor('#f04747')
+        .setFooter({ text: 'Système de préfixe • Version bêta' })
+        .setTimestamp();
+      
+      await message.reply({ embeds: [genericErrorEmbed] });
     } catch (replyError) {
       console.error('Impossible de répondre au message:', replyError.message);
+      // Tenter une réponse simple en cas d'échec de l'embed
+      try {
+        await message.reply('❌ Erreur lors de l\'exécution de la commande. Utilisez plutôt les commandes slash (/).');
+      } catch (e) {
+        console.error('Échec total de la réponse:', e.message);
+      }
     }
   }
 }
@@ -137,7 +187,20 @@ async function handleHelpCommand(message, client, prefixHandler, prefixData, arg
       }
     }
     
-    await message.reply(`❌ Commande \`${commandName}\` introuvable.`);
+    // Créer un embed pour la commande introuvable
+    const { EmbedBuilder } = await import('discord.js');
+    const errorEmbed = new EmbedBuilder()
+      .setTitle('❓ Commande introuvable')
+      .setDescription(`La commande \`${commandName}\` n'existe pas ou n'est pas disponible.`)
+      .addFields(
+        { name: '💡 Suggestions', value: 'Vérifiez l\'orthographe ou utilisez `/help` pour voir la liste des commandes disponibles.' },
+        { name: '🧪 Note', value: 'Le système de commandes préfixe est en version **BÊTA** et peut présenter des limitations.' }
+      )
+      .setColor('#5865f2')
+      .setFooter({ text: 'Système de préfixe • Version bêta' })
+      .setTimestamp();
+    
+    await message.reply({ embeds: [errorEmbed] });
     return;
   }
   

@@ -499,6 +499,25 @@
   box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.1);
 }
 
+/* Styles pour les éléments désactivés */
+.form-input:disabled,
+.form-select:disabled,
+button:disabled,
+.login-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Style pour l'icône de chargement */
+.fa-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 .form-help {
   display: block;
   color: var(--text-muted);

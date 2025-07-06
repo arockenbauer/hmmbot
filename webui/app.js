@@ -371,6 +371,7 @@ class HmmBotAdmin {
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
     const errorDiv = document.getElementById('login-error');
+    const loginBtn = document.querySelector('.login-btn');
     
     if (!username || !password) {
       errorDiv.textContent = 'Veuillez saisir votre nom d\'utilisateur et votre mot de passe';
@@ -379,6 +380,15 @@ class HmmBotAdmin {
     }
     
     try {
+      // Afficher l'indicateur de chargement sur le bouton
+      const originalBtnText = loginBtn.innerHTML;
+      loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connexion...';
+      loginBtn.disabled = true;
+      
+      // Désactiver les champs du formulaire pendant la connexion
+      document.getElementById('username').disabled = true;
+      document.getElementById('password').disabled = true;
+      
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -391,6 +401,9 @@ class HmmBotAdmin {
         this.currentUser = data.user;
         localStorage.setItem('jwt', this.token);
         
+        // Garder le loader pendant le chargement des données
+        loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Chargement des données...';
+        
         await this.loadConfig();
         await this.loadBotStats();
         await this.loadTicketStats();
@@ -398,6 +411,12 @@ class HmmBotAdmin {
         await this.loadServerData();
         await this.loadUsers();
         await this.loadRoles();
+        
+        // Restaurer le bouton et les champs (même si on va cacher l'écran de login)
+        loginBtn.innerHTML = originalBtnText;
+        loginBtn.disabled = false;
+        document.getElementById('username').disabled = false;
+        document.getElementById('password').disabled = false;
         
         this.hideLogin();
         this.showApp();
@@ -407,11 +426,23 @@ class HmmBotAdmin {
         
         this.showNotification(`Bienvenue, ${this.currentUser.username} !`, 'success');
       } else {
+        // Restaurer le bouton et les champs en cas d'erreur
+        loginBtn.innerHTML = originalBtnText;
+        loginBtn.disabled = false;
+        document.getElementById('username').disabled = false;
+        document.getElementById('password').disabled = false;
+        
         const error = await res.json();
         errorDiv.textContent = error.error || 'Erreur de connexion';
         errorDiv.style.display = 'block';
       }
     } catch (error) {
+      // Restaurer le bouton et les champs en cas d'erreur
+      loginBtn.innerHTML = originalBtnText;
+      loginBtn.disabled = false;
+      document.getElementById('username').disabled = false;
+      document.getElementById('password').disabled = false;
+      
       console.error('Erreur lors de la connexion:', error);
       errorDiv.textContent = 'Erreur de connexion au serveur';
       errorDiv.style.display = 'block';

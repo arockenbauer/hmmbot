@@ -3928,6 +3928,49 @@ input:checked + .toggle-slider:before {
   padding: 2px 6px;
   border-radius: 50%;
   font-weight: bold;
+}
+
+/* Badge bêta */
+.beta-badge {
+  background-color: #f59f00;
+  color: white;
+  font-size: 0.6rem;
+  padding: 1px 4px;
+  border-radius: 4px;
+  margin-left: 5px;
+  font-weight: bold;
+}
+
+/* Carte d'avertissement */
+.warning-card {
+  border-left: 4px solid var(--warning-color);
+  margin-bottom: 20px;
+}
+
+.warning-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 5px;
+}
+
+.warning-message i {
+  font-size: 24px;
+  color: var(--warning-color);
+  margin-top: 5px;
+}
+
+.warning-message h4 {
+  color: var(--warning-color);
+  margin-bottom: 5px;
+  font-size: 16px;
+}
+
+.warning-message p {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
   animation: pulse 2s infinite;
 }
 

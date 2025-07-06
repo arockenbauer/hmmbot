@@ -271,6 +271,43 @@ app.post('/api/config', checkPermission('config', 'edit'), (req, res) => {
   }
 });
 
+// Save prefix config
+app.post('/api/config/prefix', checkPermission('prefix', 'edit'), (req, res) => {
+  try {
+    const { enabled, prefix, help_enabled } = req.body;
+    
+    // Validation du préfixe
+    if (!prefix || prefix.length > 5 || /\s/.test(prefix)) {
+      return res.status(400).json({ 
+        error: 'Le préfixe ne peut pas contenir d\'espaces et doit faire moins de 5 caractères.' 
+      });
+    }
+    
+    // Lire la configuration actuelle
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+    
+    // Mettre à jour la configuration du préfixe
+    if (!config.prefix_system) {
+      config.prefix_system = {};
+    }
+    
+    config.prefix_system.enabled = enabled;
+    config.prefix_system.prefix = prefix;
+    config.prefix_system.help_enabled = help_enabled;
+    
+    // Sauvegarder la configuration
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+    
+    res.json({ 
+      success: true,
+      message: 'Configuration du préfixe mise à jour avec succès.'
+    });
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour de la configuration du préfixe:', error);
+    res.status(500).json({ error: 'Impossible de sauvegarder la configuration du préfixe' });
+  }
+});
+
 // Get ticket stats
 app.get('/api/tickets/stats', checkPermission('tickets', 'view'), (req, res) => {
   try {

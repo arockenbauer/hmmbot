@@ -193,6 +193,16 @@ export const data = new SlashCommandBuilder()
         option.setName('moderation').setDescription('Système de modération')))
   .addSubcommand(subcommand =>
     subcommand
+      .setName('prefix')
+      .setDescription('Configure le système de préfixe')
+      .addBooleanOption(option =>
+        option.setName('enabled').setDescription('Activer le système de préfixe'))
+      .addStringOption(option =>
+        option.setName('prefix').setDescription('Préfixe à utiliser (ex: !, ., $)'))
+      .addBooleanOption(option =>
+        option.setName('help_enabled').setDescription('Activer la commande d\'aide')))
+  .addSubcommand(subcommand =>
+    subcommand
       .setName('setup')
       .setDescription('Assistant de configuration complète du bot'))
   .addSubcommand(subcommand =>
@@ -236,9 +246,16 @@ export const data = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
 export async function execute(interaction) {
-  const subcommand = interaction.options.getSubcommand();
+  // Utiliser false pour ne pas exiger une sous-commande
+  const subcommand = interaction.options.getSubcommand(false);
 
   try {
+    // Si aucune sous-commande n'est spécifiée, afficher l'interface principale
+    if (!subcommand) {
+      await showMainConfigInterface(interaction);
+      return;
+    }
+    
     switch (subcommand) {
       case 'global':
         await showMainConfigInterface(interaction);
@@ -290,6 +307,9 @@ export async function execute(interaction) {
         break;
       case 'reset':
         await handleResetConfig(interaction);
+        break;
+      case 'prefix':
+        await handlePrefixConfig(interaction);
         break;
     }
   } catch (error) {
@@ -1406,6 +1426,79 @@ async function showWebuiInterface(interaction) {
     );
 
   await interaction.update({ embeds: [embed], components: [buttons, backButton] });
+}
+
+// Gestionnaire de configuration du préfixe
+async function handlePrefixConfig(interaction) {
+  const enabled = interaction.options.getBoolean('enabled');
+  const prefix = interaction.options.getString('prefix');
+  const helpEnabled = interaction.options.getBoolean('help_enabled');
+  
+  if (enabled === null && prefix === null && helpEnabled === null) {
+    // Afficher la configuration actuelle
+    const config = Config.getConfig();
+    const prefixConfig = config.prefix_system || { enabled: false, prefix: '!', help_enabled: true };
+    
+    const embed = new EmbedBuilder()
+      .setTitle('🔧 Configuration du Système de Préfixe')
+      .setDescription('Configuration actuelle du système de préfixe')
+      .addFields([
+        { name: 'État', value: prefixConfig.enabled ? '✅ Activé' : '❌ Désactivé', inline: true },
+        { name: 'Préfixe', value: prefixConfig.prefix || 'Non défini', inline: true },
+        { name: 'Commande d\'aide', value: prefixConfig.help_enabled ? '✅ Activée' : '❌ Désactivée', inline: true },
+        { name: 'Utilisation', value: `Exemple: \`${prefixConfig.prefix}ping\`\nAide: \`${prefixConfig.prefix}help\``, inline: false }
+      ])
+      .setColor(prefixConfig.enabled ? '#00d26a' : '#ff6b6b')
+      .setTimestamp();
+    
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+  
+  // Importer le PrefixCommandHandler
+  const { PrefixCommandHandler } = await import('../utils/prefixHandler.js');
+  const prefixHandler = new PrefixCommandHandler(interaction.client);
+  
+  // Obtenir la configuration actuelle
+  const currentConfig = await prefixHandler.getPrefixData(interaction.guild.id) || { enabled: false, prefix: '!', help_enabled: true };
+  
+  // Mettre à jour la configuration
+  const newEnabled = enabled !== null ? enabled : currentConfig.enabled;
+  const newPrefix = prefix !== null ? prefix : currentConfig.prefix;
+  const newHelpEnabled = helpEnabled !== null ? helpEnabled : currentConfig.help_enabled;
+  
+  // Valider le préfixe
+  if (newPrefix && (newPrefix.length > 5 || /\s/.test(newPrefix))) {
+    return interaction.reply({ 
+      content: '❌ Le préfixe ne peut pas contenir d\'espaces et doit faire moins de 5 caractères.', 
+      ephemeral: true 
+    });
+  }
+  
+  // Sauvegarder la configuration
+  prefixHandler.setPrefixConfig(interaction.guild.id, newEnabled, newPrefix, newHelpEnabled);
+  
+  const embed = new EmbedBuilder()
+    .setTitle('✅ Configuration du Préfixe Mise à Jour')
+    .setDescription('Le système de préfixe a été configuré avec succès !')
+    .addFields([
+      { name: 'État', value: newEnabled ? '✅ Activé' : '❌ Désactivé', inline: true },
+      { name: 'Préfixe', value: newPrefix, inline: true },
+      { name: 'Commande d\'aide', value: newHelpEnabled ? '✅ Activée' : '❌ Désactivée', inline: true },
+      { name: 'Exemple d\'utilisation', value: `\`${newPrefix}ping\` → Équivalent à \`/ping\``, inline: false }
+    ])
+    .setColor('#00d26a')
+    .setTimestamp();
+  
+  if (newEnabled) {
+    embed.addFields({
+      name: '📝 Information',
+      value: `Toutes les commandes slash existantes sont maintenant disponibles avec le préfixe \`${newPrefix}\`!\n` +
+             `Utilisez \`${newPrefix}help\` pour voir la liste des commandes disponibles.`,
+      inline: false
+    });
+  }
+  
+  await interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
 // Gestionnaire d'interactions pour les boutons et menus

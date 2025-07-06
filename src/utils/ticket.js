@@ -793,6 +793,10 @@ export class AdvancedTicketManager {
     return Object.values(this.activeTickets);
   }
 
+  getTicketByChannelId(channelId) {
+    return Object.values(this.activeTickets).find(ticket => ticket.channelId === channelId);
+  }
+
   generateTicketId() {
     return Math.random().toString(36).substr(2, 9).toUpperCase();
   }

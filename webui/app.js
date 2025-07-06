@@ -46,7 +46,8 @@ class HmmBotAdmin {
           logs: ['view', 'config'],
           embeds: ['view', 'edit', 'send'],
           users: ['view', 'create', 'edit', 'delete', 'manage_roles'],
-          updates: ['view', 'apply', 'config']
+          updates: ['view', 'apply', 'config'],
+          prefix: ['view', 'edit']
         }
       },
       admin: { 
@@ -62,7 +63,8 @@ class HmmBotAdmin {
           logs: ['view'],
           embeds: ['view', 'edit', 'send'],
           users: ['view', 'edit'],
-          updates: ['view']
+          updates: ['view'],
+          prefix: ['view']
         }
       },
       moderator: { 
@@ -78,7 +80,8 @@ class HmmBotAdmin {
           logs: ['view'],
           embeds: ['view', 'send'],
           users: ['view'],
-          updates: ['view']
+          updates: ['view'],
+          prefix: ['view']
         }
       },
       support: { 
@@ -167,6 +170,11 @@ class HmmBotAdmin {
         name: 'Utilisateurs',
         icon: 'fas fa-users',
         permissions: ['view', 'create', 'edit', 'delete', 'manage_roles']
+      },
+      prefix: {
+        name: 'Préfixe',
+        icon: 'fas fa-terminal',
+        permissions: ['view', 'edit']
       }
     };
   }
@@ -242,6 +250,10 @@ class HmmBotAdmin {
       if (e.target.id === 'roles-form') {
         e.preventDefault();
         await this.saveRolesConfig(e.target);
+      }
+      if (e.target.id === 'prefix-form') {
+        e.preventDefault();
+        await this.savePrefixConfig(e.target);
       }
       if (e.target.id === 'general-config-form') {
         e.preventDefault();
@@ -1040,6 +1052,7 @@ class HmmBotAdmin {
       logs: 'Logs',
       embeds: 'Embeds',
       users: 'Utilisateurs',
+      prefix: 'Configuration Préfixe',
       updates: 'Mise à jour'
     };
     document.getElementById('page-title').textContent = titles[section] || section;
@@ -1137,6 +1150,14 @@ class HmmBotAdmin {
           this.loadRoles();
           this.loadModules();
           // Pas de applyEditPermissions car roles a sa propre logique de permissions
+        } else {
+          content.innerHTML = '<div class="card"><h2>Accès refusé</h2><p>Vous n\'avez pas les permissions nécessaires pour accéder à cette section.</p></div>';
+        }
+        break;
+      case 'prefix':
+        if (this.hasPermission('prefix', 'view')) {
+          content.innerHTML = this.renderPrefix();
+          this.applyPrefixPermissions();
         } else {
           content.innerHTML = '<div class="card"><h2>Accès refusé</h2><p>Vous n\'avez pas les permissions nécessaires pour accéder à cette section.</p></div>';
         }
@@ -5271,6 +5292,198 @@ class HmmBotAdmin {
     } catch (error) {
       console.error('Erreur lors de la mise à jour de la configuration:', error);
       this.showNotification('Erreur de connexion', 'error');
+    }
+  }
+
+  /**
+   * Rend le contenu de la section préfixe
+   */
+  renderPrefix() {
+    const prefixConfig = this.config.prefix_system || { enabled: false, prefix: '!', help_enabled: true };
+    
+    return `
+      <div class="section-header">
+        <h2>Configuration du Système de Préfixe <span class="beta-badge">BÊTA</span></h2>
+        <p>Configurez le système de préfixe pour permettre l'utilisation de commandes textuelles.</p>
+      </div>
+      
+      <div class="card warning-card">
+        <div class="card-content">
+          <div class="warning-message">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div>
+              <h4>Fonctionnalité en version bêta</h4>
+              <p>Le système de préfixe est actuellement en phase de test et peut présenter des instabilités. Utilisez-le avec précaution et signalez tout problème rencontré.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-header">
+          <h3>
+            <i class="fas fa-terminal"></i>
+            Paramètres du Préfixe
+          </h3>
+        </div>
+        <div class="card-content">
+          <form id="prefix-form" class="config-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Système Activé</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" name="enabled" ${prefixConfig.enabled ? 'checked' : ''}>
+                  <span class="toggle-slider"></span>
+                </label>
+                <small class="form-help">Active ou désactive le système de commandes avec préfixe.</small>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">Préfixe</label>
+                <input type="text" class="form-input" name="prefix" value="${prefixConfig.prefix || '!'}" maxlength="5" placeholder="!" required>
+                <small class="form-help">Le préfixe à utiliser pour les commandes (ex: !, ., $). Maximum 5 caractères, pas d'espaces.</small>
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Commande d'aide activée</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" name="help_enabled" ${prefixConfig.help_enabled ? 'checked' : ''}>
+                  <span class="toggle-slider"></span>
+                </label>
+                <small class="form-help">Active ou désactive la commande d'aide (${prefixConfig.prefix || '!'}help).</small>
+              </div>
+            </div>
+            
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i>
+                Enregistrer
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-header">
+          <h3>
+            <i class="fas fa-info-circle"></i>
+            Informations
+          </h3>
+        </div>
+        <div class="card-content">
+          <div class="info-block">
+            <h4>Utilisation</h4>
+            <p>Lorsque le système de préfixe est activé, les utilisateurs peuvent utiliser les commandes avec le préfixe configuré.</p>
+            <p>Exemple: <code>${prefixConfig.prefix || '!'}ping</code> au lieu de <code>/ping</code></p>
+            
+            <h4>Commande d'aide</h4>
+            <p>Si activée, la commande <code>${prefixConfig.prefix || '!'}help</code> affiche la liste des commandes disponibles.</p>
+            <p>Les utilisateurs peuvent également obtenir de l'aide sur une commande spécifique avec <code>${prefixConfig.prefix || '!'}help [commande]</code></p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  /**
+   * Applique les permissions pour la section préfixe
+   */
+  applyPrefixPermissions() {
+    if (!this.hasPermission('prefix', 'edit')) {
+      const form = document.getElementById('prefix-form');
+      if (form) {
+        const inputs = form.querySelectorAll('input, select, button[type="submit"]');
+        inputs.forEach(input => {
+          input.disabled = true;
+        });
+        
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+          submitBtn.style.display = 'none';
+        }
+        
+        form.insertAdjacentHTML('beforeend', 
+          '<div class="permission-notice">' +
+          '<i class="fas fa-lock"></i> ' +
+          'Vous n\'avez pas la permission de modifier la configuration du préfixe.' +
+          '</div>'
+        );
+      }
+    }
+  }
+  
+  /**
+   * Sauvegarde la configuration du préfixe
+   */
+  async savePrefixConfig(form) {
+    try {
+      // Afficher l'indicateur de chargement
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const originalBtnText = submitBtn.innerHTML;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enregistrement...';
+      submitBtn.disabled = true;
+      
+      const formData = new FormData(form);
+      const enabled = formData.get('enabled') === 'on';
+      const prefix = formData.get('prefix');
+      const helpEnabled = formData.get('help_enabled') === 'on';
+      
+      // Validation du préfixe
+      if (!prefix || prefix.length > 5 || /\s/.test(prefix)) {
+        this.showNotification('Le préfixe ne peut pas contenir d\'espaces et doit faire moins de 5 caractères.', 'error');
+        submitBtn.innerHTML = originalBtnText;
+        submitBtn.disabled = false;
+        return;
+      }
+      
+      const response = await fetch('/api/config/prefix', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.token}`
+        },
+        body: JSON.stringify({
+          enabled,
+          prefix,
+          help_enabled: helpEnabled
+        })
+      });
+      
+      // Restaurer le bouton
+      submitBtn.innerHTML = originalBtnText;
+      submitBtn.disabled = false;
+      
+      if (response.ok) {
+        // Mettre à jour la configuration locale
+        if (!this.config.prefix_system) {
+          this.config.prefix_system = {};
+        }
+        this.config.prefix_system.enabled = enabled;
+        this.config.prefix_system.prefix = prefix;
+        this.config.prefix_system.help_enabled = helpEnabled;
+        
+        this.showNotification('✅ Configuration du préfixe mise à jour avec succès.', 'success');
+        
+        // Mettre à jour l'affichage
+        const prefixStatusText = enabled ? 'Activé' : 'Désactivé';
+        const helpStatusText = helpEnabled ? 'Activée' : 'Désactivée';
+        
+        this.showNotification(`
+          <strong>Préfixe mis à jour:</strong><br>
+          État: ${prefixStatusText}<br>
+          Préfixe: ${prefix}<br>
+          Commande d'aide: ${helpStatusText}
+        `, 'info', 5000);
+      } else {
+        const error = await response.json();
+        this.showNotification(`❌ Erreur: ${error.error || 'Impossible de mettre à jour la configuration du préfixe.'}`, 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde de la configuration du préfixe:', error);
+      this.showNotification('❌ Erreur lors de la sauvegarde de la configuration du préfixe.', 'error');
     }
   }
 

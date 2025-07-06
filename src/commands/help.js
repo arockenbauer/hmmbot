@@ -41,6 +41,8 @@ export async function autocomplete(interaction) {
   await interaction.respond(filtered);
 }
 
+
+
 // Charge toutes les commandes dynamiquement
 async function loadAllCommands() {
   const commands = [];
@@ -448,6 +450,26 @@ function getPermissionNames(permissions) {
 export async function handleHelpInteraction(interaction) {
   if (!interaction.isButton() && !interaction.isStringSelectMenu()) return;
 
+  // Gérer les boutons de pagination d'aide pour les commandes préfixe
+  if (interaction.isButton() && 
+      ['help_first', 'help_prev', 'help_next', 'help_last'].includes(interaction.customId)) {
+    
+    // Les boutons de pagination sont gérés directement dans messageCreate.js
+    // Cette fonction est appelée par interactionCreate.js mais n'a pas besoin de faire quoi que ce soit
+    // car le collecteur dans messageCreate.js s'occupe déjà de la pagination
+    
+    // Si nous arrivons ici, c'est que l'interaction n'a pas été traitée par le collecteur
+    // Cela peut arriver si le collecteur a expiré ou si l'interaction provient d'un autre contexte
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: "Cette interaction n'est plus valide. Veuillez utiliser à nouveau la commande d'aide.",
+        ephemeral: true
+      });
+    }
+    return;
+  }
+
+  // Gérer les autres interactions d'aide (pour les commandes slash)
   const commands = await loadAllCommands();
   
   if (interaction.customId === 'help_all_commands') {

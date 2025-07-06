@@ -103,5 +103,10 @@
       "welcome_message": "Bienvenue dans votre ticket ! Un membre de notre équipe va vous répondre sous peu.",
       "confirm_before_delete": true
     }
+  },
+  "prefix_system": {
+    "enabled": true,
+    "prefix": "!",
+    "help_enabled": true
   }
 }

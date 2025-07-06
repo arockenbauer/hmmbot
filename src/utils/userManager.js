@@ -69,6 +69,11 @@ export class UserManager {
       name: 'Mise à jour',
       icon: 'fas fa-download',
       permissions: ['view', 'apply', 'config']
+    },
+    prefix: {
+      name: 'Préfixe',
+      icon: 'fas fa-terminal',
+      permissions: ['view', 'edit']
     }
   };
 
@@ -97,7 +102,8 @@ export class UserManager {
         embeds: ['view', 'edit', 'send'],
         config: ['view', 'edit'],
         users: ['view', 'create', 'edit', 'delete'],
-        updates: ['view', 'apply', 'config']
+        updates: ['view', 'apply', 'config'],
+        prefix: ['view', 'edit']
       },
       isSystem: true
     },
@@ -110,7 +116,8 @@ export class UserManager {
         moderation: ['view', 'edit'],
         economy: ['view'],
         logs: ['view'],
-        users: ['view']
+        users: ['view'],
+        prefix: ['view']
       },
       isSystem: true
     },

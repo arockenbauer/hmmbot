@@ -45,6 +45,11 @@ export class UserManager {
       icon: 'fas fa-users-cog',
       permissions: ['view', 'edit']
     },
+    servers: {
+      name: 'Serveurs',
+      icon: 'fas fa-server',
+      permissions: ['view', 'leave']
+    },
     logs: {
       name: 'Logs',
       icon: 'fas fa-file-alt',
@@ -98,6 +103,7 @@ export class UserManager {
         economy: ['view', 'edit'],
         channels: ['view', 'edit'],
         roles: ['view', 'edit'],
+        servers: ['view'],
         logs: ['view', 'edit'],
         embeds: ['view', 'edit', 'send'],
         config: ['view', 'edit'],
@@ -115,6 +121,7 @@ export class UserManager {
         tickets: ['view', 'edit'],
         moderation: ['view', 'edit'],
         economy: ['view'],
+        servers: ['view'],
         logs: ['view'],
         users: ['view'],
         prefix: ['view']
@@ -127,6 +134,7 @@ export class UserManager {
       permissions: {
         dashboard: ['view'],
         tickets: ['view', 'edit'],
+        servers: ['view'],
         logs: ['view'],
         users: ['view']
       },
@@ -136,7 +144,8 @@ export class UserManager {
       name: 'Lecteur',
       color: '#747d8c',
       permissions: {
-        dashboard: ['view']
+        dashboard: ['view'],
+        servers: ['view']
       },
       isSystem: true
     }

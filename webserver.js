@@ -1424,6 +1424,68 @@ app.post('/api/updates/restart', checkUpdateApplyPermission, (req, res) => {
   }
 });
 
+// Get Discord servers list
+app.get('/api/discord/servers', checkPermission('servers', 'view'), (req, res) => {
+  try {
+    if (!global.botClient || !global.botClient.isReady()) {
+      return res.status(503).json({ error: 'Bot non connecté' });
+    }
+
+    const servers = global.botClient.guilds.cache.map(guild => ({
+      id: guild.id,
+      name: guild.name,
+      icon: guild.iconURL({ dynamic: true, size: 64 }),
+      memberCount: guild.memberCount,
+      ownerId: guild.ownerId,
+      joinedAt: guild.joinedAt,
+      description: guild.description,
+      features: guild.features
+    }));
+
+    res.json(servers);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des serveurs:', error);
+    res.status(500).json({ error: 'Impossible de récupérer la liste des serveurs' });
+  }
+});
+
+// Leave Discord server
+app.post('/api/discord/servers/:serverId/leave', checkPermission('servers', 'leave'), async (req, res) => {
+  try {
+    if (!global.botClient || !global.botClient.isReady()) {
+      return res.status(503).json({ error: 'Bot non connecté' });
+    }
+
+    const { serverId } = req.params;
+    const guild = global.botClient.guilds.cache.get(serverId);
+    
+    if (!guild) {
+      return res.status(404).json({ error: 'Serveur non trouvé' });
+    }
+
+    const serverName = guild.name;
+    
+    // Quitter le serveur
+    await guild.leave();
+    
+    // Logger l'action
+    console.log(`[API] Bot a quitté le serveur: ${serverName} (${serverId}) par ${req.user.username}`);
+
+    res.json({ 
+      success: true, 
+      message: `Bot a quitté le serveur "${serverName}" avec succès`,
+      serverName: serverName
+    });
+
+  } catch (error) {
+    console.error('Erreur lors de la sortie du serveur:', error);
+    res.status(500).json({ 
+      error: 'Erreur lors de la sortie du serveur',
+      details: error.message 
+    });
+  }
+});
+
 // Fallback to index.html for SPA (DOIT ÊTRE EN DERNIER)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'webui', 'index.html'));

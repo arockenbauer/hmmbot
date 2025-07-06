@@ -43,6 +43,7 @@ class HmmBotAdmin {
           economy: ['view', 'edit'],
           channels: ['view', 'edit'],
           roles: ['view', 'edit'],
+          servers: ['view', 'leave'],
           logs: ['view', 'config'],
           embeds: ['view', 'edit', 'send'],
           users: ['view', 'create', 'edit', 'delete', 'manage_roles'],
@@ -60,6 +61,7 @@ class HmmBotAdmin {
           economy: ['view', 'edit'],
           channels: ['view', 'edit'],
           roles: ['view'],
+          servers: ['view'],
           logs: ['view'],
           embeds: ['view', 'edit', 'send'],
           users: ['view', 'edit'],
@@ -77,6 +79,7 @@ class HmmBotAdmin {
           economy: ['view'],
           channels: ['view'],
           roles: ['view'],
+          servers: ['view'],
           logs: ['view'],
           embeds: ['view', 'send'],
           users: ['view'],
@@ -94,6 +97,7 @@ class HmmBotAdmin {
           economy: ['view'],
           channels: ['view'],
           roles: ['view'],
+          servers: ['view'],
           logs: ['view'],
           embeds: ['view'],
           users: ['view'],
@@ -110,6 +114,7 @@ class HmmBotAdmin {
           economy: ['view'],
           channels: ['view'],
           roles: ['view'],
+          servers: ['view'],
           logs: ['view'],
           embeds: ['view'],
           users: ['view'],
@@ -150,7 +155,11 @@ class HmmBotAdmin {
         icon: 'fas fa-users-cog',
         permissions: ['view', 'edit']
       },
-
+      servers: {
+        name: 'Serveurs',
+        icon: 'fas fa-server',
+        permissions: ['view', 'leave']
+      },
       logs: {
         name: 'Logs',
         icon: 'fas fa-file-alt',
@@ -410,6 +419,12 @@ class HmmBotAdmin {
       }
       if (e.target.classList.contains('show-create-role-btn')) {
         this.showCreateRoleModal();
+      }
+      // Gestionnaires pour les serveurs
+      if (e.target.classList.contains('leave-server-btn')) {
+        const serverId = e.target.dataset.serverId;
+        const serverName = e.target.dataset.serverName;
+        this.showLeaveServerConfirmModal(serverId, serverName);
       }
     });
     window.addEventListener('resize', () => {
@@ -1171,6 +1186,139 @@ class HmmBotAdmin {
     }
   }
 
+  async loadServers() {
+    try {
+      const res = await fetch('/api/discord/servers', {
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+      if (res.ok) {
+        this.servers = await res.json();
+        this.updateServersDisplay();
+      } else {
+        throw new Error('Erreur lors du chargement des serveurs');
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des serveurs:', error);
+      this.showNotification('Erreur lors du chargement des serveurs', 'error');
+    }
+  }
+
+  updateServersDisplay() {
+    const serversContainer = document.getElementById('servers-list');
+    if (!serversContainer || !this.servers) return;
+
+    if (this.servers.length === 0) {
+      serversContainer.innerHTML = '<div class="no-data">Aucun serveur trouvé</div>';
+      return;
+    }
+
+    serversContainer.innerHTML = this.servers.map(server => `
+      <div class="server-card">
+        <div class="server-info">
+          <div class="server-avatar">
+            ${server.icon ? 
+              `<img src="${server.icon}" alt="${server.name}" class="server-icon">` : 
+              `<div class="server-icon-placeholder">${server.name.charAt(0).toUpperCase()}</div>`
+            }
+          </div>
+          <div class="server-details">
+            <h3 class="server-name">${server.name}</h3>
+            <div class="server-stats">
+              <span class="member-count">
+                <i class="fas fa-users"></i>
+                ${server.memberCount} membres
+              </span>
+              <span class="join-date">
+                <i class="fas fa-calendar"></i>
+                Rejoint le ${new Date(server.joinedAt).toLocaleDateString('fr-FR')}
+              </span>
+            </div>
+            ${server.description ? `<p class="server-description">${server.description}</p>` : ''}
+          </div>
+        </div>
+        <div class="server-actions">
+          ${this.hasPermission('servers', 'leave') ? 
+            `<button class="btn btn-danger leave-server-btn" 
+                     data-server-id="${server.id}" 
+                     data-server-name="${server.name}">
+              <i class="fas fa-sign-out-alt"></i>
+              Quitter
+            </button>` : ''
+          }
+        </div>
+      </div>
+    `).join('');
+  }
+
+  showLeaveServerConfirmModal(serverId, serverName) {
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay active';
+    modalOverlay.innerHTML = `
+      <div class="modal">
+        <div class="modal-header">
+          <h3>Quitter le serveur ?</h3>
+          <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-content">
+          <div class="modal-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <p>Êtes-vous sûr de vouloir faire quitter le bot du serveur <strong>"${serverName}"</strong> ?</p>
+            <p class="warning-text">Cette action est irréversible. Le bot devra être réinvité pour rejoindre à nouveau ce serveur.</p>
+          </div>
+          <div class="modal-actions">
+            <button id="confirm-leave-server" class="btn btn-danger" data-server-id="${serverId}" data-server-name="${serverName}">
+              <i class="fas fa-sign-out-alt"></i>
+              Confirmer
+            </button>
+            <button id="cancel-leave-server" class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">
+              <i class="fas fa-times"></i>
+              Annuler
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modalOverlay);
+
+    // Ajouter le gestionnaire d'événement pour le bouton de confirmation
+    document.getElementById('confirm-leave-server').addEventListener('click', (e) => {
+      const serverId = e.target.dataset.serverId;
+      const serverName = e.target.dataset.serverName;
+      this.leaveServer(serverId, serverName);
+      modalOverlay.remove();
+    });
+  }
+
+  async leaveServer(serverId, serverName) {
+    try {
+      this.showNotification(`Sortie du serveur "${serverName}" en cours...`, 'info');
+      
+      const res = await fetch(`/api/discord/servers/${serverId}/leave`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': 'Bearer ' + this.token,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await res.json();
+
+      if (res.ok) {
+        this.showNotification(`Bot a quitté le serveur "${serverName}" avec succès`, 'success');
+        // Recharger la liste des serveurs
+        await this.loadServers();
+      } else {
+        throw new Error(result.error || 'Erreur lors de la sortie du serveur');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la sortie du serveur:', error);
+      this.showNotification(`Erreur lors de la sortie du serveur: ${error.message}`, 'error');
+    }
+  }
+
   showApp() {
     this.hideLogin();
     this.updateUserInfo();
@@ -1189,6 +1337,7 @@ class HmmBotAdmin {
       economy: 'Économie',
       channels: 'Salons',
       roles: 'Rôles',
+      servers: 'Serveurs',
       logs: 'Logs',
       embeds: 'Embeds',
       users: 'Utilisateurs',
@@ -1290,6 +1439,14 @@ class HmmBotAdmin {
           this.loadRoles();
           this.loadModules();
           // Pas de applyEditPermissions car roles a sa propre logique de permissions
+        } else {
+          content.innerHTML = '<div class="card"><h2>Accès refusé</h2><p>Vous n\'avez pas les permissions nécessaires pour accéder à cette section.</p></div>';
+        }
+        break;
+      case 'servers':
+        if (this.hasPermission('servers', 'view')) {
+          content.innerHTML = this.renderServers();
+          this.loadServers();
         } else {
           content.innerHTML = '<div class="card"><h2>Accès refusé</h2><p>Vous n\'avez pas les permissions nécessaires pour accéder à cette section.</p></div>';
         }
@@ -2143,6 +2300,41 @@ class HmmBotAdmin {
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    `;
+  }
+
+  renderServers() {
+    return `
+      <div class="section-header">
+        <h1>
+          <i class="fas fa-server"></i>
+          Gestion des Serveurs
+        </h1>
+        <p>Visualisez et gérez les serveurs où le bot est présent.</p>
+      </div>
+      
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">
+            <i class="fas fa-list"></i>
+            Liste des Serveurs
+          </h3>
+          <div class="card-actions">
+            <button class="btn btn-secondary" onclick="app.loadServers()">
+              <i class="fas fa-sync-alt"></i>
+              Actualiser
+            </button>
+          </div>
+        </div>
+        <div class="card-content">
+          <div id="servers-list" class="servers-container">
+            <div class="loading-spinner">
+              <i class="fas fa-spinner fa-spin"></i>
+              Chargement des serveurs...
+            </div>
+          </div>
         </div>
       </div>
     `;

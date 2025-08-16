@@ -100,7 +100,7 @@ export class Economy {
     const now = Date.now();
     const lastDaily = user.lastDaily || 0;
     const timeDiff = now - lastDaily;
-    const oneDay = 24 * 60 * 60 * 1000; // 24 heures en millisecondes
+    const oneDay = 12 * 60 * 60 * 1000; // 12 heures en millisecondes
     
     return timeDiff >= oneDay;
   }

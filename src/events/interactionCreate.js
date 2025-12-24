@@ -4,6 +4,7 @@ import { AdvancedTicketManager } from '../utils/ticket.js';
 import { ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle } from 'discord.js';
 import * as ConfigCommand from '../commands/config.js';
 import * as HelpCommand from '../commands/help.js';
+import { automationManager } from '../utils/automationManager.js';
 
 export const name = 'interactionCreate';
 export async function execute(interaction, client) {
@@ -408,6 +409,66 @@ export async function execute(interaction, client) {
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({ content: '❌ Une erreur est survenue.', ephemeral: true });
       }
+    }
+    return;
+  }
+
+  // Gestion du modal de création d'automatisation
+  if (interaction.isModalSubmit() && interaction.customId === 'automation_create_modal') {
+    try {
+      const name = interaction.fields.getTextInputValue('auto_name');
+      const description = interaction.fields.getTextInputValue('auto_description');
+      
+      if (!name) {
+        return await interaction.reply({
+          content: '❌ Le nom de l\'automatisation est requis.',
+          ephemeral: true
+        });
+      }
+
+      // Créer l'automatisation avec des valeurs par défaut
+      const automation = {
+        id: `auto_${Date.now()}`,
+        name,
+        description,
+        channelId: interaction.guild.channels.cache.filter(c => c.isTextBased()).first()?.id || '',
+        interval: {
+          amount: 1,
+          unit: 'hours'
+        },
+        randomMode: false,
+        enabled: true,
+        messages: [{
+          id: `msg_${Date.now()}`,
+          type: 'text',
+          content: 'Message automatisé'
+        }],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        createdBy: interaction.user.username,
+        messageIndex: 0,
+        lastExecution: null,
+        nextExecution: Date.now() + 3600000
+      };
+
+      const result = automationManager.addAutomation(automation);
+      if (result.success) {
+        await interaction.reply({
+          content: `✅ Automatisation **${name}** créée avec succès !`,
+          ephemeral: true
+        });
+      } else {
+        await interaction.reply({
+          content: `❌ Erreur lors de la création : ${result.error}`,
+          ephemeral: true
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors du traitement du modal d\'automatisation:', error);
+      await interaction.reply({
+        content: '❌ Une erreur est survenue lors de la création de l\'automatisation.',
+        ephemeral: true
+      });
     }
     return;
   }

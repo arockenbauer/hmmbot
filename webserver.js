@@ -9,6 +9,9 @@ import { Logger } from './src/utils/logger.js';
 import { UserManager } from './src/utils/userManager.js';
 import { LogCleaner } from './src/utils/logCleaner.js';
 import { updateManager } from './src/utils/updateManager.js';
+import { automationManager } from './src/utils/automationManager.js';
+import { AutomationStorage } from './src/utils/automationStorage.js';
+import { AutomationValidator } from './src/utils/automationValidator.js';
 import dotenv from 'dotenv';
 
 // Charger les variables d'environnement
@@ -1483,6 +1486,197 @@ app.post('/api/discord/servers/:serverId/leave', checkPermission('servers', 'lea
       error: 'Erreur lors de la sortie du serveur',
       details: error.message 
     });
+  }
+});
+
+// ===== AUTOMATION ENDPOINTS =====
+
+// GET all automations
+app.get('/api/automations', checkPermission('automations', 'view'), (req, res) => {
+  try {
+    const automations = automationManager.getAutomations();
+    res.json(automations);
+  } catch (error) {
+    console.error('[API] Error getting automations:', error);
+    res.status(500).json({ error: 'Error retrieving automations', details: error.message });
+  }
+});
+
+// GET single automation by ID
+app.get('/api/automations/:id', checkPermission('automations', 'view'), (req, res) => {
+  try {
+    const automation = automationManager.getAutomation(req.params.id);
+    if (!automation) {
+      return res.status(404).json({ error: 'Automation not found' });
+    }
+    res.json(automation);
+  } catch (error) {
+    console.error('[API] Error getting automation:', error);
+    res.status(500).json({ error: 'Error retrieving automation', details: error.message });
+  }
+});
+
+// POST create new automation
+app.post('/api/automations', checkPermission('automations', 'edit'), async (req, res) => {
+  try {
+    const { name, description, channelId, interval, randomMode, enabled, messages } = req.body;
+
+    if (!name || !channelId || !interval || !interval.amount || !interval.unit) {
+      return res.status(400).json({ error: 'Missing required fields: name, channelId, interval' });
+    }
+
+    const intervalValidation = AutomationValidator.validateInterval(interval.amount, interval.unit);
+    if (!intervalValidation.valid) {
+      return res.status(400).json({ error: intervalValidation.error });
+    }
+
+    const channelValidation = AutomationValidator.validateChannelId(channelId);
+    if (!channelValidation.valid) {
+      return res.status(400).json({ error: channelValidation.error });
+    }
+
+    const automation = {
+      id: AutomationValidator.generateId(),
+      name,
+      description: description || '',
+      channelId,
+      interval: {
+        amount: parseInt(interval.amount),
+        unit: interval.unit
+      },
+      randomMode: randomMode || false,
+      enabled: enabled !== undefined ? enabled : true,
+      messages: Array.isArray(messages) ? messages : [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      createdBy: req.user?.username || 'unknown',
+      messageIndex: 0,
+      lastExecution: null,
+      nextExecution: Date.now() + intervalValidation.intervalMs
+    };
+
+    const saveResult = automationManager.addAutomation(automation);
+    if (!saveResult.success) {
+      return res.status(400).json({ error: saveResult.error });
+    }
+
+    console.log(`[API] Automation created: ${automation.id} by ${req.user?.username}`);
+    res.status(201).json(automation);
+  } catch (error) {
+    console.error('[API] Error creating automation:', error);
+    res.status(500).json({ error: 'Error creating automation', details: error.message });
+  }
+});
+
+// PUT update automation
+app.put('/api/automations/:id', checkPermission('automations', 'edit'), async (req, res) => {
+  try {
+    const automationId = req.params.id;
+    const updates = req.body;
+
+    const current = automationManager.getAutomation(automationId);
+    if (!current) {
+      return res.status(404).json({ error: 'Automation not found' });
+    }
+
+    if (updates.interval) {
+      const intervalValidation = AutomationValidator.validateInterval(updates.interval.amount, updates.interval.unit);
+      if (!intervalValidation.valid) {
+        return res.status(400).json({ error: intervalValidation.error });
+      }
+    }
+
+    if (updates.channelId) {
+      const channelValidation = AutomationValidator.validateChannelId(updates.channelId);
+      if (!channelValidation.valid) {
+        return res.status(400).json({ error: channelValidation.error });
+      }
+    }
+
+    const updateResult = automationManager.updateAutomation(automationId, updates);
+    if (!updateResult.success) {
+      return res.status(400).json({ error: updateResult.error });
+    }
+
+    console.log(`[API] Automation updated: ${automationId} by ${req.user?.username}`);
+    res.json(updateResult.automation);
+  } catch (error) {
+    console.error('[API] Error updating automation:', error);
+    res.status(500).json({ error: 'Error updating automation', details: error.message });
+  }
+});
+
+// DELETE automation
+app.delete('/api/automations/:id', checkPermission('automations', 'delete'), async (req, res) => {
+  try {
+    const automationId = req.params.id;
+
+    const automation = automationManager.getAutomation(automationId);
+    if (!automation) {
+      return res.status(404).json({ error: 'Automation not found' });
+    }
+
+    const deleteResult = automationManager.removeAutomation(automationId);
+    if (!deleteResult.success) {
+      return res.status(400).json({ error: deleteResult.error });
+    }
+
+    console.log(`[API] Automation deleted: ${automationId} by ${req.user?.username}`);
+    res.json({ success: true, message: 'Automation deleted successfully' });
+  } catch (error) {
+    console.error('[API] Error deleting automation:', error);
+    res.status(500).json({ error: 'Error deleting automation', details: error.message });
+  }
+});
+
+// POST test/execute automation
+app.post('/api/automations/:id/test', checkPermission('automations', 'test'), async (req, res) => {
+  try {
+    const automationId = req.params.id;
+
+    const automation = automationManager.getAutomation(automationId);
+    if (!automation) {
+      return res.status(404).json({ error: 'Automation not found' });
+    }
+
+    const result = await automationManager.testAutomation(automationId);
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    console.log(`[API] Automation tested: ${automationId} by ${req.user?.username}`);
+    res.json({ success: true, message: 'Automation executed successfully' });
+  } catch (error) {
+    console.error('[API] Error testing automation:', error);
+    res.status(500).json({ error: 'Error executing automation', details: error.message });
+  }
+});
+
+// GET available channels for automations
+app.get('/api/automations/channels/list', checkPermission('automations', 'view'), (req, res) => {
+  try {
+    if (!global.botClient || !global.botClient.isReady()) {
+      return res.status(503).json({ error: 'Bot not connected' });
+    }
+
+    const guild = global.botClient.guilds.cache.first();
+    if (!guild) {
+      return res.status(404).json({ error: 'No guild found' });
+    }
+
+    const channels = guild.channels.cache
+      .filter(c => c.isTextBased())
+      .map(c => ({
+        id: c.id,
+        name: c.name,
+        type: c.type
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json(channels);
+  } catch (error) {
+    console.error('[API] Error getting channels:', error);
+    res.status(500).json({ error: 'Error retrieving channels', details: error.message });
   }
 });
 

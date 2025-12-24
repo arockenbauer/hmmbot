@@ -108,5 +108,6 @@
     "enabled": true,
     "prefix": "!",
     "help_enabled": true
-  }
+  },
+  "automations": []
 }

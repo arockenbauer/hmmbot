@@ -17,6 +17,7 @@ class HmmBotAdmin {
     this.customRoles = {};
     this.allRoles = {};
     this.modules = {};
+    this.channels = {};
     
     // Données pour le module de mise à jour
     this.updateStatus = null;
@@ -46,6 +47,7 @@ class HmmBotAdmin {
           servers: ['view', 'leave'],
           logs: ['view', 'config'],
           embeds: ['view', 'edit', 'send'],
+          automations: ['view', 'edit', 'delete', 'test'],
           users: ['view', 'create', 'edit', 'delete', 'manage_roles'],
           updates: ['view', 'apply', 'config'],
           prefix: ['view', 'edit']
@@ -64,6 +66,7 @@ class HmmBotAdmin {
           servers: ['view'],
           logs: ['view'],
           embeds: ['view', 'edit', 'send'],
+          automations: ['view', 'edit', 'delete', 'test'],
           users: ['view', 'edit'],
           updates: ['view'],
           prefix: ['view']
@@ -169,6 +172,11 @@ class HmmBotAdmin {
         name: 'Embeds',
         icon: 'fas fa-code',
         permissions: ['view', 'edit', 'send']
+      },
+      automations: {
+        name: 'Automatisation',
+        icon: 'fas fa-robot',
+        permissions: ['view', 'edit', 'delete', 'test']
       },
       updates: {
         name: 'Mise à jour',
@@ -798,6 +806,393 @@ class HmmBotAdmin {
     });
   }
 
+  // Appliquer les permissions pour les automations
+  applyAutomationPermissions() {
+    const hasEditPermission = this.hasPermission('automations', 'edit');
+    const hasDeletePermission = this.hasPermission('automations', 'delete');
+    const hasTestPermission = this.hasPermission('automations', 'test');
+
+    // Boutons de création
+    const createButtons = document.querySelectorAll('.btn-create-automation');
+    createButtons.forEach(btn => {
+      btn.disabled = !hasEditPermission;
+      btn.title = hasEditPermission ? '' : 'Vous n\'avez pas la permission de créer des automations';
+    });
+
+    // Boutons d\'édition
+    const editButtons = document.querySelectorAll('.btn-edit-automation');
+    editButtons.forEach(btn => {
+      btn.disabled = !hasEditPermission;
+      btn.title = hasEditPermission ? '' : 'Vous n\'avez pas la permission de modifier';
+    });
+
+    // Boutons de suppression
+    const deleteButtons = document.querySelectorAll('.btn-delete-automation');
+    deleteButtons.forEach(btn => {
+      btn.disabled = !hasDeletePermission;
+      btn.title = hasDeletePermission ? '' : 'Vous n\'avez pas la permission de supprimer';
+    });
+
+    // Boutons de test
+    const testButtons = document.querySelectorAll('.btn-test-automation');
+    testButtons.forEach(btn => {
+      btn.disabled = !hasTestPermission;
+      btn.title = hasTestPermission ? '' : 'Vous n\'avez pas la permission de tester';
+    });
+  }
+
+  renderAutomations() {
+    return `
+      <div class="card">
+        <div class="card-header">
+          <h2>⚙️ Automatisation</h2>
+          <button class="btn btn-primary btn-create-automation">+ Créer une Automatisation</button>
+        </div>
+        <div id="automations-list" class="automations-list"></div>
+      </div>
+      <div id="automation-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+          <span class="close">&times;</span>
+          <h3 id="modal-title">Créer une Automatisation</h3>
+          <form id="automation-form">
+            <input type="hidden" id="automation-id" />
+            
+            <label>Nom:</label>
+            <input type="text" id="auto-name" placeholder="Ex: Annonce quotidienne" required />
+            
+            <label>Description:</label>
+            <textarea id="auto-description" placeholder="Description de l'automatisation"></textarea>
+            
+            <label>Salon:</label>
+            <select id="auto-channel" required></select>
+            
+            <label>Intervalle:</label>
+            <div style="display: flex; gap: 10px;">
+              <input type="number" id="auto-interval-amount" placeholder="Montant" min="1" required style="flex: 1;" />
+              <select id="auto-interval-unit" required style="flex: 1;">
+                <option value="seconds">Secondes</option>
+                <option value="minutes">Minutes</option>
+                <option value="hours">Heures</option>
+                <option value="days">Jours</option>
+              </select>
+            </div>
+            
+            <label>
+              <input type="checkbox" id="auto-random-mode" />
+              Mode aléatoire (sinon séquentiel)
+            </label>
+            
+            <label>
+              <input type="checkbox" id="auto-enabled" checked />
+              Activé
+            </label>
+            
+            <div id="messages-section">
+              <h4>Messages</h4>
+              <div id="messages-list"></div>
+              <button type="button" class="btn btn-secondary" id="add-message-btn">+ Ajouter un Message</button>
+            </div>
+            
+            <div style="margin-top: 20px; text-align: right;">
+              <button type="button" class="btn btn-secondary" id="cancel-btn">Annuler</button>
+              <button type="submit" class="btn btn-primary">Sauvegarder</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+  }
+
+  async loadAutomations() {
+    try {
+      const res = await fetch('/api/automations', {
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+      if (res.status === 401) {
+        this.logout();
+        return;
+      }
+      if (!res.ok) throw new Error('Erreur de chargement');
+      
+      const automations = await res.json();
+      this.displayAutomations(automations);
+      this.setupAutomationEventListeners();
+    } catch (error) {
+      console.error('Erreur lors du chargement des automations:', error);
+      this.showNotification('Erreur lors du chargement des automations.', 'error');
+    }
+  }
+
+  displayAutomations(automations) {
+    const container = document.getElementById('automations-list');
+    if (!automations || automations.length === 0) {
+      container.innerHTML = '<p class="text-center">Aucune automatisation créée</p>';
+      return;
+    }
+
+    const html = automations.map(auto => `
+      <div class="automation-card">
+        <div class="automation-header">
+          <h3>${auto.name}</h3>
+          <div class="automation-status ${auto.enabled ? 'active' : 'inactive'}">
+            ${auto.enabled ? '✅ Actif' : '❌ Inactif'}
+          </div>
+        </div>
+        <p class="automation-description">${auto.description || 'N/A'}</p>
+        <div class="automation-details">
+          <div><strong>Intervalle:</strong> ${auto.interval.amount} ${auto.interval.unit}</div>
+          <div><strong>Mode:</strong> ${auto.randomMode ? '🎲 Aléatoire' : '📊 Séquentiel'}</div>
+          <div><strong>Salon:</strong> #${this.getChannelName(auto.channelId)}</div>
+          <div><strong>Messages:</strong> ${auto.messages.length}</div>
+        </div>
+        <div class="automation-actions">
+          <button class="btn btn-sm btn-primary btn-edit-automation" data-id="${auto.id}">Éditer</button>
+          <button class="btn btn-sm btn-success btn-test-automation" data-id="${auto.id}">Tester</button>
+          <button class="btn btn-sm btn-danger btn-delete-automation" data-id="${auto.id}">Supprimer</button>
+        </div>
+      </div>
+    `).join('');
+    
+    container.innerHTML = html;
+  }
+
+  setupAutomationEventListeners() {
+    const createBtn = document.querySelector('.btn-create-automation');
+    if (createBtn) {
+      createBtn.addEventListener('click', () => this.openAutomationModal());
+    }
+
+    document.querySelectorAll('.btn-edit-automation').forEach(btn => {
+      btn.addEventListener('click', (e) => this.editAutomation(e.target.dataset.id));
+    });
+
+    document.querySelectorAll('.btn-delete-automation').forEach(btn => {
+      btn.addEventListener('click', (e) => this.deleteAutomation(e.target.dataset.id));
+    });
+
+    document.querySelectorAll('.btn-test-automation').forEach(btn => {
+      btn.addEventListener('click', (e) => this.testAutomation(e.target.dataset.id));
+    });
+
+    const modal = document.getElementById('automation-modal');
+    const closeBtn = modal.querySelector('.close');
+    const cancelBtn = document.getElementById('cancel-btn');
+    const form = document.getElementById('automation-form');
+    const addMessageBtn = document.getElementById('add-message-btn');
+
+    if (closeBtn) closeBtn.addEventListener('click', () => this.closeAutomationModal());
+    if (cancelBtn) cancelBtn.addEventListener('click', () => this.closeAutomationModal());
+    if (form) form.addEventListener('submit', (e) => this.saveAutomation(e));
+    if (addMessageBtn) addMessageBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.addMessage();
+    });
+  }
+
+  addMessage() {
+    const messagesList = document.getElementById('messages-list');
+    const messageId = `msg_${Date.now()}`;
+    const messageElement = document.createElement('div');
+    messageElement.className = 'message-item';
+    messageElement.id = messageId;
+    messageElement.style.marginBottom = '10px';
+    messageElement.style.padding = '10px';
+    messageElement.style.backgroundColor = '#2a2a2a';
+    messageElement.style.borderRadius = '4px';
+    messageElement.style.display = 'flex';
+    messageElement.style.gap = '10px';
+    messageElement.style.alignItems = 'flex-end';
+    
+    messageElement.innerHTML = `
+      <textarea placeholder="Contenu du message" class="message-content" style="flex: 1; padding: 8px; backgroundColor: #1a1a1a; color: #fff; border: 1px solid #444; borderRadius: 4px; fontFamily: monospace; minHeight: 60px;"></textarea>
+      <button type="button" class="btn btn-sm btn-danger remove-message" data-message-id="${messageId}" style="padding: 8px 12px;">✕</button>
+    `;
+    
+    messagesList.appendChild(messageElement);
+    
+    const removeBtn = messageElement.querySelector('.remove-message');
+    removeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      messageElement.remove();
+    });
+  }
+
+  openAutomationModal() {
+    this.loadChannelsList();
+    document.getElementById('automation-modal').style.display = 'block';
+    document.getElementById('modal-title').textContent = 'Créer une Automatisation';
+    document.getElementById('automation-form').reset();
+    document.getElementById('automation-id').value = '';
+  }
+
+  closeAutomationModal() {
+    document.getElementById('automation-modal').style.display = 'none';
+  }
+
+  async loadChannelsList() {
+    try {
+      const res = await fetch('/api/automations/channels/list', {
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+      if (!res.ok) throw new Error('Erreur de chargement');
+      
+      const channels = await res.json();
+      this.channels = {};
+      channels.forEach(c => {
+        this.channels[c.id] = c.name;
+      });
+      const select = document.getElementById('auto-channel');
+      select.innerHTML = channels.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    } catch (error) {
+      console.error('Erreur lors du chargement des salons:', error);
+    }
+  }
+
+  getChannelName(channelId) {
+    return this.channels[channelId] || `Canal ${channelId}`;
+  }
+
+  async saveAutomation(e) {
+    e.preventDefault();
+    const automationId = document.getElementById('automation-id').value;
+    
+    const messageElements = document.querySelectorAll('.message-content');
+    const messages = [];
+    messageElements.forEach((textarea, index) => {
+      const content = textarea.value.trim();
+      if (content) {
+        messages.push({
+          id: `msg_${Date.now()}_${index}`,
+          type: 'text',
+          content: content
+        });
+      }
+    });
+
+    const automation = {
+      name: document.getElementById('auto-name').value,
+      description: document.getElementById('auto-description').value,
+      channelId: document.getElementById('auto-channel').value,
+      interval: {
+        amount: parseInt(document.getElementById('auto-interval-amount').value),
+        unit: document.getElementById('auto-interval-unit').value
+      },
+      randomMode: document.getElementById('auto-random-mode').checked,
+      enabled: document.getElementById('auto-enabled').checked,
+      messages: messages.length > 0 ? messages : [
+        {
+          id: `msg_${Date.now()}`,
+          type: 'text',
+          content: 'Message automatisé'
+        }
+      ]
+    };
+
+    if (!automation.name) {
+      this.showNotification('Le nom est requis', 'error');
+      return;
+    }
+
+    const method = automationId ? 'PUT' : 'POST';
+    const url = automationId ? `/api/automations/${automationId}` : '/api/automations';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': 'Bearer ' + this.token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(automation)
+      });
+
+      if (res.ok) {
+        this.showNotification('Automatisation sauvegardée avec succès', 'success');
+        this.closeAutomationModal();
+        this.loadAutomations();
+      } else {
+        let errorMessage = 'Erreur inconnue';
+        try {
+          const error = await res.json();
+          errorMessage = error.error || error.details || 'Erreur inconnue';
+        } catch (e) {
+          errorMessage = `Erreur ${res.status}`;
+        }
+        this.showNotification('Erreur: ' + errorMessage, 'error');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde:', error);
+      this.showNotification('Erreur lors de la sauvegarde: ' + error.message, 'error');
+    }
+  }
+
+  async deleteAutomation(automationId) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette automatisation?')) return;
+
+    try {
+      const res = await fetch(`/api/automations/${automationId}`, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+
+      if (res.ok) {
+        this.showNotification('Automatisation supprimée', 'success');
+        this.loadAutomations();
+      } else {
+        this.showNotification('Erreur lors de la suppression', 'error');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      this.showNotification('Erreur lors de la suppression', 'error');
+    }
+  }
+
+  async testAutomation(automationId) {
+    try {
+      const res = await fetch(`/api/automations/${automationId}/test`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+
+      if (res.ok) {
+        this.showNotification('Automatisation testée avec succès', 'success');
+      } else {
+        const error = await res.json();
+        this.showNotification('Erreur: ' + (error.error || 'Erreur inconnue'), 'error');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      this.showNotification('Erreur lors du test', 'error');
+    }
+  }
+
+  async editAutomation(automationId) {
+    try {
+      const res = await fetch(`/api/automations/${automationId}`, {
+        headers: { Authorization: 'Bearer ' + this.token }
+      });
+      if (!res.ok) throw new Error('Erreur de chargement');
+      
+      const automation = await res.json();
+      this.loadChannelsList();
+      setTimeout(() => {
+        document.getElementById('automation-id').value = automation.id;
+        document.getElementById('auto-name').value = automation.name;
+        document.getElementById('auto-description').value = automation.description || '';
+        document.getElementById('auto-channel').value = automation.channelId;
+        document.getElementById('auto-interval-amount').value = automation.interval.amount;
+        document.getElementById('auto-interval-unit').value = automation.interval.unit;
+        document.getElementById('auto-random-mode').checked = automation.randomMode;
+        document.getElementById('auto-enabled').checked = automation.enabled;
+        document.getElementById('modal-title').textContent = 'Éditer Automatisation';
+        document.getElementById('automation-modal').style.display = 'block';
+      }, 100);
+    } catch (error) {
+      console.error('Erreur:', error);
+      this.showNotification('Erreur lors du chargement', 'error');
+    }
+  }
+
   // Obtenir le nom d'affichage du rôle
   getRoleDisplayName(role) {
     const roleNames = {
@@ -1417,6 +1812,16 @@ class HmmBotAdmin {
             this.loadServerData();
           }
           this.applyEmbedPermissions();
+        } else {
+          content.innerHTML = '<div class="card"><h2>Accès refusé</h2><p>Vous n\'avez pas les permissions nécessaires pour accéder à cette section.</p></div>';
+        }
+        break;
+
+      case 'automations':
+        if (this.hasPermission('automations', 'view')) {
+          content.innerHTML = this.renderAutomations();
+          this.loadAutomations();
+          this.applyAutomationPermissions();
         } else {
           content.innerHTML = '<div class="card"><h2>Accès refusé</h2><p>Vous n\'avez pas les permissions nécessaires pour accéder à cette section.</p></div>';
         }
@@ -3411,8 +3816,40 @@ class HmmBotAdmin {
   }
 
   // Charger les rôles disponibles
+  mergeRolePermissions(defaultRoles, serverRoles) {
+    const merged = {};
+    
+    for (const [roleKey, defaultRole] of Object.entries(defaultRoles)) {
+      merged[roleKey] = {
+        name: defaultRole.name,
+        level: defaultRole.level,
+        permissions: { ...defaultRole.permissions }
+      };
+      
+      if (serverRoles && serverRoles[roleKey] && serverRoles[roleKey].permissions) {
+        merged[roleKey].permissions = {
+          ...defaultRole.permissions,
+          ...serverRoles[roleKey].permissions
+        };
+      }
+    }
+    
+    if (serverRoles) {
+      for (const [roleKey, serverRole] of Object.entries(serverRoles)) {
+        if (!merged[roleKey]) {
+          merged[roleKey] = serverRole;
+        }
+      }
+    }
+    
+    return merged;
+  }
+
   async loadRoles() {
     try {
+      // Sauvegarder les rôles par défaut pour la fusion
+      const defaultRoles = { ...this.roles };
+      
       // Charger les rôles système
       const res = await fetch('/api/users/roles', {
         headers: { Authorization: 'Bearer ' + this.token }
@@ -3424,13 +3861,11 @@ class HmmBotAdmin {
       }
       
       const contentType = res.headers.get('content-type');
+      let rolesData = null;
+      
       if (contentType && contentType.includes('application/json')) {
         try {
-          const rolesData = await res.json();
-          // Ne remplacer que si on reçoit des données valides
-          if (rolesData && typeof rolesData === 'object') {
-            this.roles = rolesData;
-          }
+          rolesData = await res.json();
         } catch (jsonError) {
           console.error('Erreur de parsing JSON pour les rôles:', jsonError);
         }
@@ -3443,13 +3878,15 @@ class HmmBotAdmin {
         
         // Essayer de parser comme JSON malgré le content-type incorrect
         try {
-          const rolesData = JSON.parse(responseText);
-          if (rolesData && typeof rolesData === 'object') {
-            this.roles = rolesData;
-          }
+          rolesData = JSON.parse(responseText);
         } catch (jsonError) {
           console.error('Impossible de parser la réponse comme JSON:', jsonError);
         }
+      }
+      
+      // Fusionner les rôles par défaut avec ceux du serveur
+      if (rolesData && typeof rolesData === 'object') {
+        this.roles = this.mergeRolePermissions(defaultRoles, rolesData);
       }
 
       // Charger les rôles personnalisés et les fusionner

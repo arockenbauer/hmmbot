@@ -8,6 +8,7 @@ import { startWebServer } from '../webserver.js';
 import { Logger } from './utils/logger.js';
 import { TerminalCommands } from './utils/terminalCommands.js';
 import { updateManager } from './utils/updateManager.js';
+import { automationManager } from './utils/automationManager.js';
 
 config();
 
@@ -204,7 +205,15 @@ global.botClient = client;
 setupGracefulShutdown(client);
 
 // Démarrer le système de planification, console interactive et créer des logs de test si configuré
-client.once('ready', () => {
+client.once('ready', async () => {
+  // Démarrer le gestionnaire d'automations
+  try {
+    await automationManager.start(client);
+    console.log(chalk.green('[AUTOMATION] Gestionnaire d\'automations démarré'));
+  } catch (err) {
+    console.error('[AUTOMATION] Erreur lors du démarrage du gestionnaire d\'automations:', err);
+  }
+
   // Import et démarrage du scheduler
   import('./commands/shedule.js').then(scheduleModule => {
     if (typeof scheduleModule.startScheduler === 'function') {

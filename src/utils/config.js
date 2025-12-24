@@ -290,6 +290,45 @@ class ConfigManager {
     return this.config?.features?.[feature]?.[setting];
   }
 
+  getAutomations() {
+    return this.config?.automations || [];
+  }
+
+  saveAutomation(automation) {
+    if (!this.config.automations) this.config.automations = [];
+    const index = this.config.automations.findIndex(a => a.id === automation.id);
+    if (index === -1) {
+      this.config.automations.push(automation);
+    } else {
+      this.config.automations[index] = automation;
+    }
+    return this.saveConfig();
+  }
+
+  updateAutomation(automationId, updates) {
+    if (!this.config.automations) this.config.automations = [];
+    const index = this.config.automations.findIndex(a => a.id === automationId);
+    if (index !== -1) {
+      this.config.automations[index] = { ...this.config.automations[index], ...updates, updatedAt: Date.now() };
+      return this.saveConfig();
+    }
+    return false;
+  }
+
+  deleteAutomation(automationId) {
+    if (!this.config.automations) this.config.automations = [];
+    const index = this.config.automations.findIndex(a => a.id === automationId);
+    if (index !== -1) {
+      this.config.automations.splice(index, 1);
+      return this.saveConfig();
+    }
+    return false;
+  }
+
+  getAutomationById(automationId) {
+    return this.config?.automations?.find(a => a.id === automationId) || null;
+  }
+
 
 
   // Méthode pour créer une sauvegarde

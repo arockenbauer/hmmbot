@@ -58,7 +58,12 @@ export class UserManager {
     embeds: {
       name: 'Embeds',
       icon: 'fas fa-code',
-      permissions: ['view', 'send']
+      permissions: ['view', 'edit', 'send']
+    },
+    automations: {
+      name: 'Automatisation',
+      icon: 'fas fa-robot',
+      permissions: ['view', 'edit', 'delete', 'test']
     },
     config: {
       name: 'Configuration',
@@ -106,6 +111,7 @@ export class UserManager {
         servers: ['view'],
         logs: ['view', 'edit'],
         embeds: ['view', 'edit', 'send'],
+        automations: ['view', 'edit', 'delete', 'test'],
         config: ['view', 'edit'],
         users: ['view', 'create', 'edit', 'delete'],
         updates: ['view', 'apply', 'config'],

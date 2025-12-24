@@ -50,14 +50,20 @@ export class AutomationManager {
       clearInterval(this.scheduledAutomations.get(automation.id));
     }
 
-    const intervalMs = AutomationValidator.validateInterval(automation.interval.amount, automation.interval.unit).intervalMs;
+    let intervalMs;
+    if (automation.scheduleType === 'daily') {
+      intervalMs = 60000;
+      console.log(`[AutomationManager] Scheduled automation ${automation.id} as daily schedule (checking every minute)`);
+    } else {
+      intervalMs = AutomationValidator.validateInterval(automation.interval.amount, automation.interval.unit).intervalMs;
+      console.log(`[AutomationManager] Scheduled automation ${automation.id} with interval ${automation.interval.amount}${automation.interval.unit.charAt(0)}`);
+    }
 
     const intervalId = setInterval(async () => {
       await this.executeAutomation(automation.id);
     }, intervalMs);
 
     this.scheduledAutomations.set(automation.id, intervalId);
-    console.log(`[AutomationManager] Scheduled automation ${automation.id} with interval ${automation.interval.amount}${automation.interval.unit.charAt(0)}`);
     return true;
   }
 
@@ -81,7 +87,12 @@ export class AutomationManager {
     automation.updatedAt = Date.now();
     automation.messageIndex = 0;
     automation.lastExecution = null;
-    automation.nextExecution = Date.now() + AutomationValidator.validateInterval(automation.interval.amount, automation.interval.unit).intervalMs;
+    
+    if (automation.scheduleType === 'daily') {
+      automation.nextExecution = Date.now() + 60000;
+    } else {
+      automation.nextExecution = Date.now() + AutomationValidator.validateInterval(automation.interval.amount, automation.interval.unit).intervalMs;
+    }
 
     const saved = AutomationStorage.save(automation);
     if (!saved) {
@@ -209,10 +220,18 @@ export class AutomationManager {
       await channel.send(payload);
 
       const now = Date.now();
+      let nextExecution;
+      
+      if (automation.scheduleType === 'daily') {
+        nextExecution = now + 60000;
+      } else {
+        nextExecution = now + AutomationValidator.validateInterval(automation.interval.amount, automation.interval.unit).intervalMs;
+      }
+      
       AutomationStorage.update(automationId, {
         lastExecution: now,
         messageIndex: automation.messageIndex,
-        nextExecution: now + AutomationValidator.validateInterval(automation.interval.amount, automation.interval.unit).intervalMs
+        nextExecution: nextExecution
       });
 
       console.log(`[AutomationManager] Executed automation ${automationId} in channel ${automation.channelId}`);

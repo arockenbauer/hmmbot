@@ -130,6 +130,40 @@ export class AutomationValidator {
     return typeof randomMode === 'boolean';
   }
 
+  static validateScheduleTimes(scheduleTimes) {
+    if (!Array.isArray(scheduleTimes)) {
+      return { valid: false, error: 'Schedule times must be an array' };
+    }
+
+    if (scheduleTimes.length === 0) {
+      return { valid: false, error: 'At least one schedule time is required' };
+    }
+
+    for (let i = 0; i < scheduleTimes.length; i++) {
+      const schedule = scheduleTimes[i];
+      if (!schedule.time || typeof schedule.time !== 'string') {
+        return { valid: false, error: `Schedule ${i + 1}: time must be a string (HH:MM format)` };
+      }
+
+      if (!/^\d{2}:\d{2}$/.test(schedule.time)) {
+        return { valid: false, error: `Schedule ${i + 1}: time must be in HH:MM format` };
+      }
+
+      const [hours, minutes] = schedule.time.split(':').map(Number);
+      if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        return { valid: false, error: `Schedule ${i + 1}: invalid time values` };
+      }
+
+      if (schedule.seconds !== undefined) {
+        if (typeof schedule.seconds !== 'number' || schedule.seconds < 0 || schedule.seconds > 59) {
+          return { valid: false, error: `Schedule ${i + 1}: seconds must be between 0 and 59` };
+        }
+      }
+    }
+
+    return { valid: true };
+  }
+
   static validateAutomation(automation) {
     if (!automation || typeof automation !== 'object') {
       return { valid: false, error: 'Automation must be an object' };
@@ -147,9 +181,18 @@ export class AutomationValidator {
       return { valid: false, error: 'Automation description must be a string' };
     }
 
-    const intervalValidation = this.validateInterval(automation.interval?.amount, automation.interval?.unit);
-    if (!intervalValidation.valid) {
-      return { valid: false, error: `Invalid interval: ${intervalValidation.error}` };
+    const scheduleType = automation.scheduleType || 'interval';
+
+    if (scheduleType === 'daily') {
+      const scheduleValidation = this.validateScheduleTimes(automation.scheduleTimes);
+      if (!scheduleValidation.valid) {
+        return { valid: false, error: `Invalid schedule times: ${scheduleValidation.error}` };
+      }
+    } else {
+      const intervalValidation = this.validateInterval(automation.interval?.amount, automation.interval?.unit);
+      if (!intervalValidation.valid) {
+        return { valid: false, error: `Invalid interval: ${intervalValidation.error}` };
+      }
     }
 
     const channelValidation = this.validateChannelId(automation.channelId);

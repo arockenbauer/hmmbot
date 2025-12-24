@@ -1519,17 +1519,13 @@ app.get('/api/automations/:id', checkPermission('automations', 'view'), (req, re
 // POST create new automation
 app.post('/api/automations', checkPermission('automations', 'edit'), async (req, res) => {
   try {
-    const { name, description, channelId, interval, randomMode, enabled, messages } = req.body;
+    const { name, description, channelId, interval, scheduleTimes, scheduleType, randomMode, enabled, messages } = req.body;
 
-    if (!name || !channelId || !interval || !interval.amount || !interval.unit) {
-      return res.status(400).json({ error: 'Missing required fields: name, channelId, interval' });
+    if (!name || !channelId) {
+      return res.status(400).json({ error: 'Missing required fields: name, channelId' });
     }
 
-    const intervalValidation = AutomationValidator.validateInterval(interval.amount, interval.unit);
-    if (!intervalValidation.valid) {
-      return res.status(400).json({ error: intervalValidation.error });
-    }
-
+    const type = scheduleType || 'interval';
     const channelValidation = AutomationValidator.validateChannelId(channelId);
     if (!channelValidation.valid) {
       return res.status(400).json({ error: channelValidation.error });
@@ -1540,10 +1536,6 @@ app.post('/api/automations', checkPermission('automations', 'edit'), async (req,
       name,
       description: description || '',
       channelId,
-      interval: {
-        amount: parseInt(interval.amount),
-        unit: interval.unit
-      },
       randomMode: randomMode || false,
       enabled: enabled !== undefined ? enabled : true,
       messages: Array.isArray(messages) ? messages : [],
@@ -1552,8 +1544,30 @@ app.post('/api/automations', checkPermission('automations', 'edit'), async (req,
       createdBy: req.user?.username || 'unknown',
       messageIndex: 0,
       lastExecution: null,
-      nextExecution: Date.now() + intervalValidation.intervalMs
+      scheduleType: type
     };
+
+    if (type === 'daily') {
+      const scheduleValidation = AutomationValidator.validateScheduleTimes(scheduleTimes);
+      if (!scheduleValidation.valid) {
+        return res.status(400).json({ error: scheduleValidation.error });
+      }
+      automation.scheduleTimes = scheduleTimes;
+      automation.nextExecution = Date.now() + 60000;
+    } else {
+      if (!interval || !interval.amount || !interval.unit) {
+        return res.status(400).json({ error: 'Missing required fields for interval mode: interval.amount, interval.unit' });
+      }
+      const intervalValidation = AutomationValidator.validateInterval(interval.amount, interval.unit);
+      if (!intervalValidation.valid) {
+        return res.status(400).json({ error: intervalValidation.error });
+      }
+      automation.interval = {
+        amount: parseInt(interval.amount),
+        unit: interval.unit
+      };
+      automation.nextExecution = Date.now() + intervalValidation.intervalMs;
+    }
 
     const saveResult = automationManager.addAutomation(automation);
     if (!saveResult.success) {
@@ -1579,7 +1593,12 @@ app.put('/api/automations/:id', checkPermission('automations', 'edit'), async (r
       return res.status(404).json({ error: 'Automation not found' });
     }
 
-    if (updates.interval) {
+    if (updates.scheduleType === 'daily' && updates.scheduleTimes) {
+      const scheduleValidation = AutomationValidator.validateScheduleTimes(updates.scheduleTimes);
+      if (!scheduleValidation.valid) {
+        return res.status(400).json({ error: scheduleValidation.error });
+      }
+    } else if (updates.interval) {
       const intervalValidation = AutomationValidator.validateInterval(updates.interval.amount, updates.interval.unit);
       if (!intervalValidation.valid) {
         return res.status(400).json({ error: intervalValidation.error });

@@ -866,15 +866,29 @@ class HmmBotAdmin {
             <label>Salon:</label>
             <select id="auto-channel" required></select>
             
-            <label>Intervalle:</label>
-            <div style="display: flex; gap: 10px;">
-              <input type="number" id="auto-interval-amount" placeholder="Montant" min="1" required style="flex: 1;" />
-              <select id="auto-interval-unit" required style="flex: 1;">
-                <option value="seconds">Secondes</option>
-                <option value="minutes">Minutes</option>
-                <option value="hours">Heures</option>
-                <option value="days">Jours</option>
-              </select>
+            <label style="display: flex; align-items: center; gap: 10px;">
+              <span>Mode planification:</span>
+              <input type="checkbox" id="auto-schedule-mode" style="width: 20px; height: 20px; cursor: pointer;" />
+              <span id="schedule-mode-label">Intervalle</span>
+            </label>
+            
+            <div id="interval-section" style="display: block;">
+              <label>Intervalle:</label>
+              <div style="display: flex; gap: 10px;">
+                <input type="number" id="auto-interval-amount" placeholder="Montant" min="1" required style="flex: 1;" />
+                <select id="auto-interval-unit" required style="flex: 1;">
+                  <option value="seconds">Secondes</option>
+                  <option value="minutes">Minutes</option>
+                  <option value="hours">Heures</option>
+                  <option value="days">Jours</option>
+                </select>
+              </div>
+            </div>
+            
+            <div id="schedule-section" style="display: none;">
+              <label>Heure(s) journalière(s) (au format HH:MM:SS):</label>
+              <div id="times-list" style="margin-bottom: 10px;"></div>
+              <button type="button" class="btn btn-secondary" id="add-time-btn" style="width: 100%; margin-bottom: 10px;">+ Ajouter une heure</button>
             </div>
             
             <label>
@@ -940,7 +954,7 @@ class HmmBotAdmin {
         </div>
         <p class="automation-description">${auto.description || 'N/A'}</p>
         <div class="automation-details">
-          <div><strong>Intervalle:</strong> ${auto.interval.amount} ${auto.interval.unit}</div>
+          <div><strong>Planification:</strong> ${auto.scheduleType === 'daily' ? `Heures: ${auto.scheduleTimes.map(t => t.time + (t.seconds ? ':' + String(t.seconds).padStart(2, '0') : '')).join(', ')}` : `${auto.interval.amount} ${auto.interval.unit}`}</div>
           <div><strong>Mode:</strong> ${auto.randomMode ? '🎲 Aléatoire' : '📊 Séquentiel'}</div>
           <div><strong>Salon:</strong> #${this.getChannelName(auto.channelId)}</div>
           <div><strong>Messages:</strong> ${auto.messages.length}</div>
@@ -979,6 +993,8 @@ class HmmBotAdmin {
     const cancelBtn = document.getElementById('cancel-btn');
     const form = document.getElementById('automation-form');
     const addMessageBtn = document.getElementById('add-message-btn');
+    const scheduleSwitch = document.getElementById('auto-schedule-mode');
+    const addTimeBtn = document.getElementById('add-time-btn');
 
     if (closeBtn) closeBtn.addEventListener('click', () => this.closeAutomationModal());
     if (cancelBtn) cancelBtn.addEventListener('click', () => this.closeAutomationModal());
@@ -986,6 +1002,61 @@ class HmmBotAdmin {
     if (addMessageBtn) addMessageBtn.addEventListener('click', (e) => {
       e.preventDefault();
       this.addMessage();
+    });
+    if (scheduleSwitch) scheduleSwitch.addEventListener('change', (e) => {
+      this.toggleScheduleMode(e.target.checked);
+    });
+    if (addTimeBtn) addTimeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.addTime();
+    });
+  }
+
+  toggleScheduleMode(isScheduleMode) {
+    const intervalSection = document.getElementById('interval-section');
+    const scheduleSection = document.getElementById('schedule-section');
+    const modeLabel = document.getElementById('schedule-mode-label');
+    const intervalAmount = document.getElementById('auto-interval-amount');
+    
+    if (isScheduleMode) {
+      intervalSection.style.display = 'none';
+      scheduleSection.style.display = 'block';
+      modeLabel.textContent = 'Heures journalières';
+      intervalAmount.removeAttribute('required');
+    } else {
+      intervalSection.style.display = 'block';
+      scheduleSection.style.display = 'none';
+      modeLabel.textContent = 'Intervalle';
+      intervalAmount.setAttribute('required', 'required');
+    }
+  }
+
+  addTime() {
+    const timesList = document.getElementById('times-list');
+    const timeId = `time_${Date.now()}`;
+    const timeElement = document.createElement('div');
+    timeElement.className = 'time-item';
+    timeElement.id = timeId;
+    timeElement.style.marginBottom = '10px';
+    timeElement.style.padding = '10px';
+    timeElement.style.backgroundColor = '#2a2a2a';
+    timeElement.style.borderRadius = '4px';
+    timeElement.style.display = 'flex';
+    timeElement.style.gap = '10px';
+    timeElement.style.alignItems = 'center';
+    
+    timeElement.innerHTML = `
+      <input type="time" placeholder="HH:MM" class="time-input" style="flex: 1; padding: 8px; backgroundColor: #1a1a1a; color: #fff; border: 1px solid #444; borderRadius: 4px;" required />
+      <input type="number" placeholder="Secondes" min="0" max="59" value="0" class="time-seconds" style="width: 80px; padding: 8px; backgroundColor: #1a1a1a; color: #fff; border: 1px solid #444; borderRadius: 4px;" />
+      <button type="button" class="btn btn-sm btn-danger remove-time" data-time-id="${timeId}" style="padding: 8px 12px;">✕</button>
+    `;
+    
+    timesList.appendChild(timeElement);
+    
+    const removeBtn = timeElement.querySelector('.remove-time');
+    removeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      timeElement.remove();
     });
   }
 
@@ -1023,6 +1094,12 @@ class HmmBotAdmin {
     document.getElementById('modal-title').textContent = 'Créer une Automatisation';
     document.getElementById('automation-form').reset();
     document.getElementById('automation-id').value = '';
+    
+    document.getElementById('auto-schedule-mode').checked = false;
+    this.toggleScheduleMode(false);
+    
+    document.getElementById('messages-list').innerHTML = '';
+    document.getElementById('times-list').innerHTML = '';
   }
 
   closeAutomationModal() {
@@ -1069,14 +1146,11 @@ class HmmBotAdmin {
       }
     });
 
+    const isScheduleMode = document.getElementById('auto-schedule-mode').checked;
     const automation = {
       name: document.getElementById('auto-name').value,
       description: document.getElementById('auto-description').value,
       channelId: document.getElementById('auto-channel').value,
-      interval: {
-        amount: parseInt(document.getElementById('auto-interval-amount').value),
-        unit: document.getElementById('auto-interval-unit').value
-      },
       randomMode: document.getElementById('auto-random-mode').checked,
       enabled: document.getElementById('auto-enabled').checked,
       messages: messages.length > 0 ? messages : [
@@ -1087,6 +1161,35 @@ class HmmBotAdmin {
         }
       ]
     };
+
+    if (isScheduleMode) {
+      const timeElements = document.querySelectorAll('.time-item');
+      const scheduleTimes = [];
+      timeElements.forEach(timeElement => {
+        const timeInput = timeElement.querySelector('.time-input');
+        const secondsInput = timeElement.querySelector('.time-seconds');
+        if (timeInput.value) {
+          scheduleTimes.push({
+            time: timeInput.value,
+            seconds: parseInt(secondsInput.value) || 0
+          });
+        }
+      });
+
+      if (scheduleTimes.length === 0) {
+        this.showNotification('Veuillez ajouter au moins une heure', 'error');
+        return;
+      }
+
+      automation.scheduleType = 'daily';
+      automation.scheduleTimes = scheduleTimes;
+    } else {
+      automation.interval = {
+        amount: parseInt(document.getElementById('auto-interval-amount').value),
+        unit: document.getElementById('auto-interval-unit').value
+      };
+      automation.scheduleType = 'interval';
+    }
 
     if (!automation.name) {
       this.showNotification('Le nom est requis', 'error');
@@ -1180,11 +1283,83 @@ class HmmBotAdmin {
         document.getElementById('auto-name').value = automation.name;
         document.getElementById('auto-description').value = automation.description || '';
         document.getElementById('auto-channel').value = automation.channelId;
-        document.getElementById('auto-interval-amount').value = automation.interval.amount;
-        document.getElementById('auto-interval-unit').value = automation.interval.unit;
         document.getElementById('auto-random-mode').checked = automation.randomMode;
         document.getElementById('auto-enabled').checked = automation.enabled;
         document.getElementById('modal-title').textContent = 'Éditer Automatisation';
+        
+        document.getElementById('messages-list').innerHTML = '';
+        if (automation.messages && automation.messages.length > 0) {
+          automation.messages.forEach(msg => {
+            const messagesList = document.getElementById('messages-list');
+            const messageId = msg.id;
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message-item';
+            messageElement.id = messageId;
+            messageElement.style.marginBottom = '10px';
+            messageElement.style.padding = '10px';
+            messageElement.style.backgroundColor = '#2a2a2a';
+            messageElement.style.borderRadius = '4px';
+            messageElement.style.display = 'flex';
+            messageElement.style.gap = '10px';
+            messageElement.style.alignItems = 'flex-end';
+            
+            messageElement.innerHTML = `
+              <textarea placeholder="Contenu du message" class="message-content" style="flex: 1; padding: 8px; backgroundColor: #1a1a1a; color: #fff; border: 1px solid #444; borderRadius: 4px; fontFamily: monospace; minHeight: 60px;">${msg.content}</textarea>
+              <button type="button" class="btn btn-sm btn-danger remove-message" data-message-id="${messageId}" style="padding: 8px 12px;">✕</button>
+            `;
+            
+            messagesList.appendChild(messageElement);
+            
+            const removeBtn = messageElement.querySelector('.remove-message');
+            removeBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              messageElement.remove();
+            });
+          });
+        }
+        
+        if (automation.scheduleType === 'daily') {
+          document.getElementById('auto-schedule-mode').checked = true;
+          this.toggleScheduleMode(true);
+          
+          document.getElementById('times-list').innerHTML = '';
+          if (automation.scheduleTimes && automation.scheduleTimes.length > 0) {
+            automation.scheduleTimes.forEach(schedule => {
+              const timesList = document.getElementById('times-list');
+              const timeId = `time_${Date.now()}`;
+              const timeElement = document.createElement('div');
+              timeElement.className = 'time-item';
+              timeElement.id = timeId;
+              timeElement.style.marginBottom = '10px';
+              timeElement.style.padding = '10px';
+              timeElement.style.backgroundColor = '#2a2a2a';
+              timeElement.style.borderRadius = '4px';
+              timeElement.style.display = 'flex';
+              timeElement.style.gap = '10px';
+              timeElement.style.alignItems = 'center';
+              
+              timeElement.innerHTML = `
+                <input type="time" placeholder="HH:MM" class="time-input" value="${schedule.time}" style="flex: 1; padding: 8px; backgroundColor: #1a1a1a; color: #fff; border: 1px solid #444; borderRadius: 4px;" required />
+                <input type="number" placeholder="Secondes" min="0" max="59" value="${schedule.seconds || 0}" class="time-seconds" style="width: 80px; padding: 8px; backgroundColor: #1a1a1a; color: #fff; border: 1px solid #444; borderRadius: 4px;" />
+                <button type="button" class="btn btn-sm btn-danger remove-time" data-time-id="${timeId}" style="padding: 8px 12px;">✕</button>
+              `;
+              
+              timesList.appendChild(timeElement);
+              
+              const removeBtn = timeElement.querySelector('.remove-time');
+              removeBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                timeElement.remove();
+              });
+            });
+          }
+        } else {
+          document.getElementById('auto-schedule-mode').checked = false;
+          this.toggleScheduleMode(false);
+          document.getElementById('auto-interval-amount').value = automation.interval.amount;
+          document.getElementById('auto-interval-unit').value = automation.interval.unit;
+        }
+        
         document.getElementById('automation-modal').style.display = 'block';
       }, 100);
     } catch (error) {

@@ -52,8 +52,6 @@ coverage/
 .nyc_output/
 
 # Zencoder
+# Huge thanks to them for helping me in this project
 .zencoder
 .zenflow
-
-# Security
-#.env.example should be tracked but not .env itself (done above)

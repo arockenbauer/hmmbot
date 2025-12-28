@@ -125,7 +125,7 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ error: 'Compte désactivé' });
     }
 
-    console.log(`[API] ✅ Connexion réussie: ${user.username} (${user.role})`);
+    console.log(`[API] Connexion réussie: ${user.username} (${user.role})`);
 
     const sessionId = UserManager.createSession(user);
     const token = jwt.sign({ sessionId, userId: user.id }, JWT_SECRET, { 
@@ -1709,20 +1709,21 @@ export async function startWebServer() {
     // Initialiser le système d'utilisateurs AVANT de démarrer le serveur
     console.log('[WEB] Initialisation du système d\'utilisateurs...');
     await UserManager.initialize();
-    console.log('[WEB] ✅ Système d\'utilisateurs initialisé');
+    console.log('[WEB] Système d\'utilisateurs initialisé');
     
     // Démarrer le serveur web
     app.listen(PORT, () => {
-      console.log(`[WEB] ✅ Interface web démarrée sur http://localhost:${PORT}`);
+      console.log(`[WEB] Interface web démarrée sur http://localhost:${PORT}`);
       
       // Créer des logs de test au démarrage pour avoir du contenu
+      // Enlevez le "//" si vous voulez debug
       //setTimeout(() => {
         //Logger.createTestLogs();
       //}, 2000);
     });
     
   } catch (error) {
-    console.error('[WEB] ❌ Erreur lors de l\'initialisation du système d\'utilisateurs:', error);
+    console.error('[WEB] Erreur lors de l\'initialisation du système d\'utilisateurs:', error);
     console.error('[WEB] Stack trace:', error.stack);
     process.exit(1);
   }
